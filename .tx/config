@@ -1,0 +1,7 @@
+[main]
+host = https://www.transifex.com
+
+[o:gotham:p:gotham:r:qt-translation-029x]
+file_filter = src/qt/locale/gotham_<lang>.xlf
+source_file = src/qt/locale/gotham_en.xlf
+source_lang = en

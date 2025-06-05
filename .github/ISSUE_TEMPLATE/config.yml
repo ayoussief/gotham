@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Gotham Core Security Policy
+    url: https://github.com/gotham/gotham/blob/master/SECURITY.md
+    about: View security policy
+  - name: Gotham Core Developers
+    url: https://gothamcore.org
+    about: Gotham Core homepage
