@@ -71,7 +71,7 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
  */
 static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
 {
-    const char* pszTimestamp = "Gotham 06/Jun/2025 Arkhams gates swing open. The asylum is now the warden.";
+    const char* pszTimestamp = "Gotham 07/Jun/2025 Arkhams gates swing open. The asylum is now the warden.";
     const CScript genesisOutputScript = CScript() << "042a53e91e0e2e41ce7c9bc2d3600478aec19fffa1c049a622e80c1417f94405f392cbdfdc68dec9f715be20d91cd63a5cbc8b73c3093d98e2875e6c1a1107748a"_hex << OP_CHECKSIG;
     return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nVersion, genesisReward);
 }
@@ -117,7 +117,7 @@ static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits
 // }
 
 // static CBlock CreateGenesisBlockMultithreaded(uint32_t nTime, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward) {
-//     const char* pszTimestamp = "Gotham 06/Jun/2025 Arkhams gates swing open. The asylum is now the warden.";
+//     const char* pszTimestamp = "Gotham 07/Jun/2025 Arkhams gates swing open. The asylum is now the warden.";
 //     const CScript genesisOutputScript = CScript() << "042a53e91e0e2e41ce7c9bc2d3600478aec19fffa1c049a622e80c1417f94405f392cbdfdc68dec9f715be20d91cd63a5cbc8b73c3093d98e2875e6c1a1107748a"_hex << OP_CHECKSIG;
     
 //     CBlock genesis = CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, 0, nBits, nVersion, genesisReward);
@@ -172,17 +172,17 @@ public:
         consensus.signet_blocks = false;
         consensus.signet_challenge.clear();
         consensus.nSubsidyHalvingInterval = 210000;
-        // consensus.script_flag_exceptions.emplace( // BIP16 exception
-        //     uint256{"00000000000002dc756eebf4f49723ed8d30cc28a5f108eb94b1ba88ac4f9c22"}, SCRIPT_VERIFY_NONE);
-        // consensus.script_flag_exceptions.emplace( // Taproot exception
-        //     uint256{"0000000000000000000f14c35b2d841e986ab5441de8c585d5ffe55ea1e395ad"}, SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_WITNESS);
-        consensus.BIP34Height = 1;
-        consensus.BIP34Hash = uint256{"000000000000024b89b42a942fe0d9fea3bb44ab7bd1b19115dd6a759c0808b8"};
-        consensus.BIP65Height = 2; 
-        consensus.BIP66Height = 3; 
-        consensus.CSVHeight = 4; 
-        consensus.SegwitHeight = 5; 
-        consensus.MinBIP9WarningHeight = 4835840; // segwit activation height + miner confirmation window
+        consensus.script_flag_exceptions.emplace( // BIP16 exception
+            uint256{"00000000003b06607a95c05c305c0d1e566ca7c446bcbab0fdae923e72472f4a"}, SCRIPT_VERIFY_NONE);
+        consensus.script_flag_exceptions.emplace( // Taproot exception
+            uint256{"00000000003b06607a95c05c305c0d1e566ca7c446bcbab0fdae923e72472f4a"}, SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_WITNESS);
+        consensus.BIP34Height = 0;
+        consensus.BIP34Hash = uint256{"00000000003b06607a95c05c305c0d1e566ca7c446bcbab0fdae923e72472f4a"};
+        consensus.BIP65Height = 0; 
+        consensus.BIP66Height = 0; 
+        consensus.CSVHeight = 0; 
+        consensus.SegwitHeight = 0; 
+        consensus.MinBIP9WarningHeight = 0; // segwit activation height + miner confirmation window
         consensus.powLimit = uint256{"00000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffff"};
         consensus.nPowTargetTimespan = 14 * 24 * 60 * 60; // two weeks
         consensus.nPowTargetSpacing = 10 * 60;
@@ -198,14 +198,14 @@ public:
 
         // Deployment of Taproot (BIPs 340-342)
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].bit = 2;
-        consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nStartTime = 1619222400; // April 24th, 2021
-        consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nTimeout = 1628640000; // August 11th, 2021
-        consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].min_activation_height = 709632; // Approximately November 12th, 2021
-        consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].threshold = 1815; // 90%
+        consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nStartTime = Consensus::BIP9Deployment::ALWAYS_ACTIVE;
+        consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].nTimeout = Consensus::BIP9Deployment::NO_TIMEOUT;
+        consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].min_activation_height = 0; // No activation delay
+        consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].threshold = 1512; // 75%
         consensus.vDeployments[Consensus::DEPLOYMENT_TAPROOT].period = 2016;
 
         // consensus.nMinimumChainWork = uint256{"0000000000000000000000000000000000000000b1f3b93b65b16d035a82be84"};
-        // consensus.defaultAssumeValid = uint256{"00000000000000000001b658dd1120e82e66d2790811f89ede9742ada3ed6d77"}; // 886157
+        // consensus.defaultAssumeValid = uint256{"00000000d9f018ab09fb4af7b6e045399aaab58b22c31dbe3ba3be7cf441aed3"}; // 886157
 
         /**
          * The message start string is designed to be unlikely to occur in normal data.
@@ -233,10 +233,10 @@ public:
         // printf("hashGenesisBlock = %s\n", consensus.hashGenesisBlock.ToString().c_str());
         // printf("hashMerkleRoot = %s\n\n", genesis.hashMerkleRoot.ToString().c_str());
 
-        genesis = CreateGenesisBlock(1749160621, 877100867, 0x1d00ffff, 1, 50 * COIN);
+        genesis = CreateGenesisBlock(1749267919, 485912397, 0x1d00ffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256{"00000000d9da2f5441b946ddb85e5c0774af81af7a2ca30373c5d6f4b2ccb159"});
-        assert(genesis.hashMerkleRoot == uint256{"335393fc1908807bd966362c7556026318f851132e4f1a8037e2a8af43d41a95"});
+        assert(consensus.hashGenesisBlock == uint256{"00000000003b06607a95c05c305c0d1e566ca7c446bcbab0fdae923e72472f4a"});
+        assert(genesis.hashMerkleRoot == uint256{"18b7acd29a9cfebb9591995ff7858a91b2d1a0216002fedf2728e389a678c747"});
 
         // Note that of those which support the service bits prefix, most only support a subset of
         // possible options.
