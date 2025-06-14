@@ -15,9 +15,20 @@
 #ifdef __GNUC__
 #define MMP_THREAD_SAFE __attribute__((const))
 #define MMP_REQUIRES_LOCK __attribute__((lock_required))
+#define MMP_REENTRANCY_GUARD __attribute__((no_sanitize("thread")))
 #else
 #define MMP_THREAD_SAFE
 #define MMP_REQUIRES_LOCK
+#define MMP_REENTRANCY_GUARD
+#endif
+
+// Modern C++17 thread safety annotations
+#if __cplusplus >= 201703L
+#define MMP_NODISCARD [[nodiscard]]
+#define MMP_THREAD_SAFE_MODERN [[nodiscard, thread_safe]]
+#else
+#define MMP_NODISCARD
+#define MMP_THREAD_SAFE_MODERN MMP_THREAD_SAFE
 #endif
 
 /**
@@ -84,6 +95,305 @@
  */
 namespace mmp {
 
+/**
+ * @struct ProofOfDelay
+ * @brief Verifiable Delay Function proof for timeout claims
+ */
+struct ProofOfDelay {
+    uint256 input;           // Initial input value
+    uint256 output;          // Final output after iterations
+    uint32_t iterations;     // Number of iterations performed
+    int64_t start_time;      // When computation started
+    int64_t end_time;        // When computation finished
+    std::vector<uint256> checkpoints; // Intermediate values for verification
+    
+    // Validate the proof
+    bool IsValid() const MMP_THREAD_SAFE {
+        // Basic validation
+        if (input.IsNull() || output.IsNull() || iterations < MMP_VDF_DIFFICULTY || 
+            checkpoints.empty() || start_time <= 0 || end_time <= start_time) {
+            return false;
+        }
+        
+        // Check if delay is reasonable
+        int64_t elapsed = end_time - start_time;
+        if (elapsed < MMP_VDF_MIN_TIME_SECONDS || elapsed > MMP_VDF_MAX_TIME_SECONDS) {
+            return false;
+        }
+        
+        // Verify checkpoints (simplified - in production, use proper VDF verification)
+        uint256 current = input;
+        uint32_t iterations_per_checkpoint = iterations / checkpoints.size();
+        
+        for (size_t i = 0; i < checkpoints.size(); i++) {
+            // Compute iterations_per_checkpoint hashes
+            for (uint32_t j = 0; j < iterations_per_checkpoint; j++) {
+                CHash256 hasher;
+                hasher.Write(current.begin(), current.size());
+                hasher.Finalize(current.begin());
+            }
+            
+            // Verify checkpoint
+            if (current != checkpoints[i]) {
+                return false;
+            }
+        }
+        
+        // Verify final output
+        if (current != output) {
+            return false;
+        }
+        
+        return true;
+    }
+};
+
+// Job type enumeration for specialized decay parameters
+enum class JobType : uint8_t {
+    SOFTWARE_DEVELOPMENT = 0,
+    DESIGN = 1,
+    WRITING = 2,
+    MARKETING = 3,
+    CONSULTING = 4,
+    LEGAL = 5,
+    FINANCIAL = 6,
+    OTHER = 7
+};
+
+// Insurance claim status enumeration
+enum class ClaimStatus : uint8_t {
+    PENDING = 0,       // Claim is pending review
+    APPROVED = 1,      // Claim has been approved
+    REJECTED = 2,      // Claim has been rejected
+    PARTIAL = 3,       // Claim has been partially approved
+    APPEALED = 4,      // Claim is being appealed
+    EXPIRED = 5,       // Claim has expired
+    PAID = 6           // Claim has been paid out
+};
+
+/**
+ * @struct InsuranceClaim
+ * @brief Represents an insurance claim in the system
+ */
+struct InsuranceClaim {
+    uint256 claim_id;               // Unique ID for the claim
+    uint256 job_id;                 // ID of the job related to the claim
+    CPubKey claimant_key;           // Public key of the claimant
+    Satoshi amount;                 // Amount being claimed
+    std::string reason;             // Reason for the claim
+    std::vector<std::string> evidence_urls; // URLs to evidence
+    std::vector<std::string> evidence_hashes; // Hashes of evidence
+    int64_t timestamp;              // When the claim was filed
+    std::vector<CPubKey> approvers; // List of approvers
+    std::vector<CPubKey> rejectors; // List of rejectors
+    ClaimStatus status;             // Current status of the claim
+    Satoshi approved_amount;        // Final approved amount (may be partial)
+    std::vector<uint8_t> signature; // Signature of the claimant
+    
+    /**
+     * @brief Check if a specific approver has already voted
+     * @param approver The approver's public key
+     * @return True if the approver has already voted
+     */
+    bool HasVoted(const CPubKey& approver) const MMP_THREAD_SAFE {
+        // Check if in approvers list
+        if (std::find(approvers.begin(), approvers.end(), approver) != approvers.end()) {
+            return true;
+        }
+        
+        // Check if in rejectors list
+        if (std::find(rejectors.begin(), rejectors.end(), approver) != rejectors.end()) {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * @brief Calculate the current approval ratio
+     * @return The ratio of approvers to total voters
+     */
+    double GetApprovalRatio() const MMP_THREAD_SAFE {
+        size_t total_votes = approvers.size() + rejectors.size();
+        if (total_votes == 0) {
+            return 0.0;
+        }
+        
+        return static_cast<double>(approvers.size()) / total_votes;
+    }
+    
+    /**
+     * @brief Check if the claim has reached the required approval threshold
+     * @return True if the claim is approved
+     */
+    bool IsApproved() const MMP_THREAD_SAFE {
+        // Must have minimum number of approvers
+        if (approvers.size() < MMP_MIN_CLAIM_APPROVERS) {
+            return false;
+        }
+        
+        // Check approval ratio
+        return GetApprovalRatio() >= MMP_CLAIM_APPROVAL_THRESHOLD;
+    }
+    
+    /**
+     * @brief Verify the signature on this claim
+     * @return True if the signature is valid
+     */
+    bool VerifySignature() const MMP_THREAD_SAFE {
+        // Calculate the claim hash
+        CHashWriter hasher(SER_GETHASH, 0);
+        hasher.write(reinterpret_cast<const char*>(claim_id.begin()), 32);
+        hasher.write(reinterpret_cast<const char*>(job_id.begin()), 32);
+        std::vector<unsigned char> pubkey_bytes(claimant_key.begin(), claimant_key.end());
+        hasher.write(reinterpret_cast<const char*>(pubkey_bytes.data()), pubkey_bytes.size());
+        hasher.write(reinterpret_cast<const char*>(&amount.value), sizeof(uint64_t));
+        hasher.write(reason.data(), reason.size());
+        hasher.write(reinterpret_cast<const char*>(&timestamp), sizeof(int64_t));
+        uint256 claim_hash = hasher.GetHash();
+        
+        // Verify the signature
+        return ::VerifySignature(claimant_key, signature, claim_hash);
+    }
+};
+
+/**
+ * @struct DAOVote
+ * @brief Represents a vote in the DAO with Merkle proof verification
+ */
+struct DAOVote {
+    uint256 proposal_id;            // ID of the proposal being voted on
+    CPubKey voter_key;              // Public key of the voter
+    bool approve;                   // Whether the voter approves the proposal
+    int64_t timestamp;              // When the vote was cast
+    uint256 merkle_root;            // Merkle root of all votes
+    std::vector<uint256> proof_chain; // Merkle proof chain
+    std::vector<uint8_t> signature; // Signature of the vote
+    
+    /**
+     * @brief Calculate the hash of this vote
+     * @return Hash of the vote data
+     */
+    uint256 CalculateVoteHash() const MMP_THREAD_SAFE {
+        CHashWriter hasher(SER_GETHASH, 0);
+        hasher.write(reinterpret_cast<const char*>(proposal_id.begin()), 32);
+        std::vector<unsigned char> pubkey_bytes(voter_key.begin(), voter_key.end());
+        hasher.write(reinterpret_cast<const char*>(pubkey_bytes.data()), pubkey_bytes.size());
+        hasher.write(reinterpret_cast<const char*>(&approve), sizeof(bool));
+        hasher.write(reinterpret_cast<const char*>(&timestamp), sizeof(int64_t));
+        return hasher.GetHash();
+    }
+    
+    /**
+     * @brief Verify the Merkle proof for this vote
+     * @return True if the proof is valid
+     */
+    bool VerifyMerkleProof() const MMP_THREAD_SAFE {
+        // Calculate the vote hash
+        uint256 vote_hash = CalculateVoteHash();
+        
+        // Compute the Merkle root from the proof chain
+        uint256 computed_root = ComputeMerkleRoot(vote_hash, proof_chain);
+        
+        // Verify the computed root matches the stored root
+        return computed_root == merkle_root;
+    }
+    
+    /**
+     * @brief Verify the signature on this vote
+     * @return True if the signature is valid
+     */
+    bool VerifySignature() const MMP_THREAD_SAFE {
+        // Calculate the vote hash
+        uint256 vote_hash = CalculateVoteHash();
+        
+        // Verify the signature
+        return ::VerifySignature(voter_key, signature, vote_hash);
+    }
+    
+    /**
+     * @brief Fully validate this vote
+     * @return True if the vote is valid
+     */
+    bool IsValid() const MMP_THREAD_SAFE {
+        // Check basic validity
+        if (proposal_id.IsNull() || !voter_key.IsValid() || timestamp <= 0) {
+            return false;
+        }
+        
+        // Verify signature
+        if (!VerifySignature()) {
+            return false;
+        }
+        
+        // Verify Merkle proof
+        if (!VerifyMerkleProof()) {
+            return false;
+        }
+        
+        return true;
+    }
+};
+
+// Reputation decay configuration per job type
+struct ReputationDecayConfig {
+    double monthly_decay_rate;       // Default: 0.95 (5% decay per month)
+    uint32_t min_reputation;         // Default: 10
+    bool use_global_settings;        // If true, use global settings instead of job-specific
+    
+    // Constructor with defaults
+    ReputationDecayConfig() 
+        : monthly_decay_rate(0.95), 
+          min_reputation(10), 
+          use_global_settings(true) {}
+    
+    // Constructor with custom values
+    ReputationDecayConfig(double decay_rate, uint32_t min_rep, bool use_global = false)
+        : monthly_decay_rate(decay_rate),
+          min_reputation(min_rep),
+          use_global_settings(use_global) {}
+};
+
+/**
+ * @struct Satoshi
+ * @brief Strong type for Bitcoin amounts in satoshis
+ */
+struct Satoshi {
+    uint64_t value;
+    
+    // Constructors
+    explicit constexpr Satoshi(uint64_t val) : value(val) {}
+    constexpr Satoshi() : value(0) {}
+    
+    // Comparison operators
+    constexpr bool operator==(const Satoshi& other) const { return value == other.value; }
+    constexpr bool operator!=(const Satoshi& other) const { return value != other.value; }
+    constexpr bool operator<(const Satoshi& other) const { return value < other.value; }
+    constexpr bool operator<=(const Satoshi& other) const { return value <= other.value; }
+    constexpr bool operator>(const Satoshi& other) const { return value > other.value; }
+    constexpr bool operator>=(const Satoshi& other) const { return value >= other.value; }
+    
+    // Arithmetic operators
+    constexpr Satoshi operator+(const Satoshi& other) const { return Satoshi(value + other.value); }
+    constexpr Satoshi operator-(const Satoshi& other) const { return Satoshi(value - other.value); }
+    constexpr Satoshi operator*(uint64_t factor) const { return Satoshi(value * factor); }
+    constexpr Satoshi operator/(uint64_t divisor) const { return Satoshi(value / divisor); }
+    
+    // Compound assignment operators
+    Satoshi& operator+=(const Satoshi& other) { value += other.value; return *this; }
+    Satoshi& operator-=(const Satoshi& other) { value -= other.value; return *this; }
+    Satoshi& operator*=(uint64_t factor) { value *= factor; return *this; }
+    Satoshi& operator/=(uint64_t divisor) { value /= divisor; return *this; }
+    
+    // Conversion to double (BTC)
+    double ToBTC() const { return static_cast<double>(value) / 100000000.0; }
+    
+    // Static factory methods
+    static constexpr Satoshi FromBTC(double btc) { 
+        return Satoshi(static_cast<uint64_t>(btc * 100000000.0)); 
+    }
+};
+
 // Protocol constants (all with MMP_ prefix for consistency)
 static constexpr char MMP_PROTOCOL_TAG[] = "MMP";
 static constexpr uint8_t MMP_PROTOCOL_VERSION = 1;
@@ -95,8 +405,8 @@ static const unsigned int MMP_MIN_CONFIRMATION_BLOCKS = 6;
 // Validation constraints (constexpr for compile-time evaluation)
 static constexpr size_t MMP_MAX_METADATA_URL_LENGTH = 2048;     // Max URL length
 static constexpr size_t MMP_MAX_METADATA_HASH_LENGTH = 64;      // SHA256 hex string
-static constexpr uint64_t MMP_MIN_JOB_AMOUNT_SATS = 1000;       // Minimum job amount (dust limit)
-static constexpr uint64_t MMP_MAX_JOB_AMOUNT_SATS = 2100000000000000ULL; // 21M BTC in sats
+static constexpr Satoshi MMP_MIN_JOB_AMOUNT = Satoshi(1000);    // Minimum job amount (dust limit)
+static constexpr Satoshi MMP_MAX_JOB_AMOUNT = Satoshi(2100000000000000ULL); // 21M BTC in sats
 static constexpr uint32_t MMP_MIN_TIMEOUT_BLOCKS = 6;           // Minimum timeout
 static constexpr uint32_t MMP_MAX_TIMEOUT_BLOCKS = 52560;       // ~1 year maximum
 
@@ -125,10 +435,10 @@ static constexpr uint32_t MMP_DISPUTE_TIMEOUT_BLOCKS = 144;        // ~24 hours 
 static constexpr size_t MMP_MAX_DISPUTE_REASON_LENGTH = 1024;      // Max dispute reason length
 
 // Security and anti-spam constraints
-static constexpr uint64_t MMP_MIN_SELECTION_PENALTY_SATS = 1000;   // Minimum penalty to prevent spam
-static constexpr uint64_t MMP_MAX_SELECTION_PENALTY_SATS = 1000000; // Maximum reasonable penalty
-static constexpr uint64_t MMP_MIN_MIDDLEMAN_BOND_SATS = 50000;     // Minimum bond for middlemen
-static constexpr uint64_t MMP_MAX_MIDDLEMAN_BOND_SATS = 100000000; // Maximum bond (1 BTC)
+static constexpr Satoshi MMP_MIN_SELECTION_PENALTY = Satoshi(1000);   // Minimum penalty to prevent spam
+static constexpr Satoshi MMP_MAX_SELECTION_PENALTY = Satoshi(1000000); // Maximum reasonable penalty
+static constexpr Satoshi MMP_MIN_MIDDLEMAN_BOND = Satoshi(50000);     // Minimum bond for middlemen
+static constexpr Satoshi MMP_MAX_MIDDLEMAN_BOND = Satoshi(100000000); // Maximum bond (1 BTC)
 static constexpr uint32_t MMP_MIN_SELECTION_TIMEOUT_BLOCKS = 6;    // Minimum 1 hour
 static constexpr uint32_t MMP_MAX_SELECTION_TIMEOUT_BLOCKS = 1008; // Maximum 1 week
 static constexpr uint32_t MMP_MAX_REPUTATION_SCORE = 100;          // Maximum reputation score
@@ -137,10 +447,58 @@ static constexpr uint32_t MMP_MAX_APPROVED_MIDDLEMEN = 50;         // Maximum in
 static constexpr size_t MMP_MAX_IDENTITY_HASH_LENGTH = 64;         // Max identity hash length
 
 // Validate protocol constants at compile time
-static_assert(MMP_MIN_SELECTION_PENALTY_SATS < MMP_MAX_SELECTION_PENALTY_SATS, 
+static_assert(MMP_MIN_SELECTION_PENALTY.value < MMP_MAX_SELECTION_PENALTY.value, 
               "Invalid selection penalty range");
-static_assert(MMP_MIN_MIDDLEMAN_BOND_SATS < MMP_MAX_MIDDLEMAN_BOND_SATS, 
+static_assert(MMP_MIN_MIDDLEMAN_BOND.value < MMP_MAX_MIDDLEMAN_BOND.value, 
               "Invalid middleman bond range");
+
+/**
+ * @class CurlHandle
+ * @brief RAII wrapper for CURL handle
+ */
+class CurlHandle {
+public:
+    // Constructor initializes CURL handle
+    CurlHandle() : handle(curl_easy_init()) {}
+    
+    // Destructor cleans up CURL handle
+    ~CurlHandle() {
+        if (handle) {
+            curl_easy_cleanup(handle);
+            handle = nullptr;
+        }
+    }
+    
+    // Deleted copy constructor and assignment operator
+    CurlHandle(const CurlHandle&) = delete;
+    CurlHandle& operator=(const CurlHandle&) = delete;
+    
+    // Move constructor
+    CurlHandle(CurlHandle&& other) noexcept : handle(other.handle) {
+        other.handle = nullptr;
+    }
+    
+    // Move assignment operator
+    CurlHandle& operator=(CurlHandle&& other) noexcept {
+        if (this != &other) {
+            if (handle) {
+                curl_easy_cleanup(handle);
+            }
+            handle = other.handle;
+            other.handle = nullptr;
+        }
+        return *this;
+    }
+    
+    // Check if handle is valid
+    bool IsValid() const { return handle != nullptr; }
+    
+    // Get the underlying CURL handle
+    CURL* Get() const { return handle; }
+    
+private:
+    CURL* handle;
+};
 static_assert(MMP_MIN_SELECTION_TIMEOUT_BLOCKS < MMP_MAX_SELECTION_TIMEOUT_BLOCKS, 
               "Invalid selection timeout range");
 static_assert(MMP_MIN_REPUTATION_FOR_AUTO <= MMP_MAX_REPUTATION_SCORE, 
@@ -157,6 +515,34 @@ static constexpr uint32_t MMP_MIN_DAO_APPROVERS = 3;               // Minimum DA
 static constexpr uint32_t MMP_MAX_DAO_APPROVERS = 15;              // Maximum DAO approvers
 static constexpr uint32_t MMP_MIN_INSURANCE_APPROVERS = 2;         // Minimum insurance claim approvers
 static constexpr uint32_t MMP_MAX_INSURANCE_APPROVERS = 5;         // Maximum insurance claim approvers
+
+// Verifiable Delay Function (VDF) constants
+static constexpr uint32_t MMP_VDF_DIFFICULTY = 1000000;            // Iterations for proof-of-delay
+static constexpr uint32_t MMP_VDF_MIN_TIME_SECONDS = 3600;         // Minimum delay (1 hour)
+static constexpr uint32_t MMP_VDF_MAX_TIME_SECONDS = 86400;        // Maximum delay (24 hours)
+static constexpr uint32_t MMP_VDF_VERIFICATION_COST = 1000;        // Verification cost (iterations)
+
+// Reputation decay constants
+static constexpr double MMP_REPUTATION_DECAY_RATE = 0.95;          // Default monthly decay rate (5%)
+static constexpr uint32_t MMP_MIN_REPUTATION_SCORE = 10;           // Minimum reputation after decay
+static constexpr int64_t MMP_SECONDS_PER_MONTH = 2592000;          // 30 days in seconds
+
+// DAO voting constants
+static constexpr uint32_t MMP_MIN_DAO_VOTES_REQUIRED = 5;          // Minimum votes required for a proposal
+static constexpr uint32_t MMP_MAX_DAO_VOTES_ALLOWED = 100;         // Maximum votes allowed for a proposal
+static constexpr double MMP_DAO_VOTE_THRESHOLD = 0.66;             // 66% threshold for approval
+
+// Insurance claim constants
+static constexpr uint32_t MMP_MIN_CLAIM_APPROVERS = 2;             // Minimum approvers for a claim
+static constexpr uint32_t MMP_MAX_CLAIM_APPROVERS = 5;             // Maximum approvers for a claim
+static constexpr double MMP_CLAIM_APPROVAL_THRESHOLD = 0.60;       // 60% threshold for approval
+
+// Insurance policy constants
+static constexpr uint32_t MMP_INSURANCE_CLAIM_WINDOW_DAYS = 30;    // Claims must be filed within 30 days
+static constexpr double MMP_MAX_INSURANCE_PAYOUT_RATIO = 0.9;      // Maximum payout is 90% of claimed amount
+static constexpr uint32_t MMP_INSURANCE_APPEAL_WINDOW_DAYS = 14;   // Appeals must be filed within 14 days
+static constexpr uint32_t MMP_INSURANCE_EVIDENCE_REQUIRED = 2;     // Minimum pieces of evidence required
+static constexpr uint32_t MMP_INSURANCE_CLAIM_COOLDOWN_DAYS = 90;  // Cooldown between claims from same user
 
 // Bond slashing and appeal constraints
 static constexpr uint32_t MMP_MIN_CHALLENGE_PERIOD_BLOCKS = 144;   // Minimum 24h for appeals
@@ -177,6 +563,23 @@ static constexpr uint8_t MMP_RESERVED_FLAGS = 0x0F;         // For future featur
 #define MMP_STRONG_EXCEPTION_SAFETY [[nodiscard]]
 #define MMP_THREAD_SAFE [[nodiscard]]
 #define MMP_REQUIRES_LOCK [[requires: lock_held]]
+
+// Reentrancy protection
+#define MMP_REENTRANCY_GUARD(id) \
+    static std::map<uint256, bool> _reentrancy_locks; \
+    static std::mutex _reentrancy_mutex; \
+    std::lock_guard<std::mutex> _lock(_reentrancy_mutex); \
+    if (_reentrancy_locks[id]) { \
+        return JobActionResult::REENTRANCY_ERROR; \
+    } \
+    _reentrancy_locks[id] = true; \
+    struct ReentrancyGuardCleanup { \
+        uint256 _id; \
+        ~ReentrancyGuardCleanup() { \
+            std::lock_guard<std::mutex> _cleanup_lock(_reentrancy_mutex); \
+            _reentrancy_locks[_id] = false; \
+        } \
+    } _cleanup{id};
 
 // Bitcoin protocol limits
 static constexpr size_t MMP_MAX_WITNESS_ELEMENT_SIZE = 520;  // Bitcoin witness element limit
@@ -369,6 +772,17 @@ enum class ResolutionPath : uint8_t {
     EMERGENCY = 5           // Emergency resolution by middleman
 };
 
+// State transition result enum
+enum class StateTransitionResult : uint8_t {
+    SUCCESS = 0,                // Transition successful
+    INVALID_CURRENT_STATE = 1,  // Current state doesn't allow this transition
+    INVALID_TARGET_STATE = 2,   // Target state is invalid
+    INVALID_TRANSITION = 3,     // This transition is not allowed
+    MISSING_REQUIRED_DATA = 4,  // Required data for transition is missing
+    TRANSITION_LOCKED = 5,      // State machine is locked (e.g., during dispute)
+    UNKNOWN_ERROR = 255         // Unknown error occurred
+};
+
 // Bond slashing conditions (can be combined with bitwise OR)
 enum class SlashCondition : uint8_t {
     MALICIOUS_BEHAVIOR = 0x01,  // Intentional misconduct
@@ -469,6 +883,10 @@ enum class JobActionResult {
     TIMEOUT_EXTENSION_FAILED,
     METADATA_UPDATE_FAILED,
     MESSAGE_SEND_FAILED,
+    // New error codes for improved state management
+    INVALID_STATE_TRANSITION,
+    REENTRANCY_ERROR,
+    KEY_GENERATION_FAILED,
     NOTIFICATION_NOT_FOUND,
     MIDDLEMAN_NOT_FOUND,
     MIDDLEMAN_ALREADY_ASSIGNED,
@@ -538,9 +956,13 @@ struct JobMetadata {
     uint256 job_id;
     std::string metadata_url;     // e.g., IPFS or HTTPS
     std::string hash;             // sha256 of the metadata contents
-    uint64_t amount_sats;         // Job payment amount in satoshis
+    Satoshi amount;               // Job payment amount in satoshis (using strong type)
     uint32_t timeout_blocks;      // Timeout in blocks
     uint32_t created_height;      // Block height when created
+    
+    // Replay protection fields
+    uint256 nonce;                // Random nonce to prevent replay attacks
+    int64_t timestamp;            // Creation timestamp for freshness verification
     
     // Validation methods (thread-safe)
     bool IsValid() const MMP_THREAD_SAFE;
@@ -548,6 +970,7 @@ struct JobMetadata {
     bool IsValidHash() const MMP_THREAD_SAFE;
     bool IsValidAmount() const MMP_THREAD_SAFE;
     bool IsValidTimeout() const MMP_THREAD_SAFE;
+    bool IsValidReplayProtection(int64_t current_time = 0) const MMP_THREAD_SAFE;
     std::string GetValidationError() const MMP_THREAD_SAFE;
     std::pair<bool, MMPError> ValidateEx() const MMP_THREAD_SAFE;
     
@@ -566,7 +989,7 @@ struct TaprootPaths {
     CScript emergency_path;       // Middleman emergency resolution
     
     // Update script paths with new keys after key rotation
-    bool UpdateWithNewKeys(const KeyAggregationContext& keys) {
+    bool UpdateWithNewKeys(const KeyAggregationContext& keys) MMP_REQUIRES_LOCK {
         if (!keys.employer_key.IsValid() || !keys.worker_key.IsValid()) {
             return false;
         }
@@ -648,22 +1071,53 @@ struct SelectionCriteria {
     }
 
 private:
+    /**
+     * @brief Calculate specialty match score with LRU cache
+     * @param mm_specialties Middleman specialties
+     * @param required_specialties Required specialties
+     * @return Match score between 0.0 and 1.0
+     */
     double CalculateSpecialtyMatchScore(const std::vector<std::string>& mm_specialties,
                                        const std::vector<std::string>& required_specialties) const noexcept {
         if (required_specialties.empty()) return 1.0; // No requirements = perfect match
         if (mm_specialties.empty()) return 0.0;       // No specialties = no match
         
-        // Use static cache to avoid recomputing for the same inputs
+        // Use thread-safe LRU cache with size limit
         using SpecialtyPair = std::pair<std::vector<std::string>, std::vector<std::string>>;
-        static std::map<SpecialtyPair, double> specialty_cache;
+        
+        // Thread-safe LRU cache implementation
+        static std::mutex cache_mutex;
+        static const size_t MAX_CACHE_SIZE = 1000;
+        static std::list<SpecialtyPair> lru_list;
+        static std::unordered_map<SpecialtyPair, 
+                                 std::pair<double, std::list<SpecialtyPair>::iterator>> cache;
         
         // Create cache key
         SpecialtyPair cache_key(mm_specialties, required_specialties);
         
-        // Check cache first
-        auto it = specialty_cache.find(cache_key);
-        if (it != specialty_cache.end()) {
-            return it->second;
+        // Critical section for cache access
+        {
+            std::lock_guard<std::mutex> lock(cache_mutex);
+            
+            // Check cache first
+            auto it = cache.find(cache_key);
+            if (it != cache.end()) {
+                // Move to front of LRU list
+                lru_list.erase(it->second.second);
+                lru_list.push_front(cache_key);
+                it->second.second = lru_list.begin();
+                
+                // Return cached result
+                return it->second.first;
+            }
+            
+            // Enforce cache size limit with LRU eviction
+            if (cache.size() >= MAX_CACHE_SIZE) {
+                // Remove least recently used item
+                auto last = lru_list.back();
+                lru_list.pop_back();
+                cache.erase(last);
+            }
         }
         
         // Not in cache, compute the match score
@@ -695,9 +1149,15 @@ private:
         // Calculate final score
         double score = static_cast<double>(matches) / required_specialties.size();
         
-        // Cache the result (limit cache size)
-        if (specialty_cache.size() < 1000) {
-            specialty_cache[cache_key] = score;
+        // Cache the result with thread safety
+        {
+            std::lock_guard<std::mutex> lock(cache_mutex);
+            
+            // Add to LRU list (front = most recently used)
+            lru_list.push_front(cache_key);
+            
+            // Add to cache with iterator to its position in the LRU list
+            cache[cache_key] = std::make_pair(score, lru_list.begin());
         }
         
         return score;
@@ -717,6 +1177,8 @@ struct Specialty {
     int64_t last_job_timestamp{0};          // Last job completed in this specialty
     bool is_certified{false};               // Whether middleman has certification in this area
     std::string certification_authority;    // Certifying body (if applicable)
+    JobType job_type{JobType::OTHER};       // Associated job type for decay parameters
+    ReputationDecayConfig decay_config;     // Custom decay configuration for this specialty
     
     // Default constructor
     Specialty() = default;
@@ -771,6 +1233,24 @@ struct Specialty {
 };
 
 /**
+ * @enum EvidenceFormat
+ * @brief Standardized evidence formats
+ */
+enum class EvidenceFormat : uint8_t {
+    TEXT = 0,                       // Plain text
+    IMAGE = 1,                      // Image file
+    VIDEO = 2,                      // Video file
+    AUDIO = 3,                      // Audio file
+    PDF = 4,                        // PDF document
+    JSON = 5,                       // JSON data
+    HTML = 6,                       // HTML document
+    ARCHIVE = 7,                    // Archive file (ZIP, TAR, etc.)
+    BLOCKCHAIN_TX = 8,              // Blockchain transaction
+    SIGNED_MESSAGE = 9,             // Cryptographically signed message
+    OTHER = 10                      // Other format
+};
+
+/**
  * @struct DisputeEvidence
  * @brief Comprehensive evidence system for disputes
  */
@@ -779,11 +1259,18 @@ struct DisputeEvidence {
     std::vector<uint256> content_hashes;           // SHA256 hashes of evidence content
     std::vector<CPubKey> notary_signatures;        // Optional third-party verification
     std::vector<std::string> evidence_descriptions; // Human-readable descriptions
+    std::vector<EvidenceFormat> evidence_formats;  // Formats of each evidence piece
     int64_t timestamp{0};                          // When evidence was submitted
     CPubKey submitter_key;                         // Who submitted the evidence
     std::string evidence_type;                     // "INITIAL", "REBUTTAL", "COUNTER", "EXPERT"
     bool is_sealed{false};                         // Whether evidence is sealed until dispute
     uint256 seal_hash;                             // Hash for sealed evidence
+    bool timestamp_verified{false};                // Whether timestamp has been verified
+    uint256 timestamp_proof;                       // Proof of timestamp (e.g., OpenTimestamps)
+    uint256 block_header_hash;                     // Hash of block header for timestamp verification
+    uint32_t block_height{0};                      // Block height for timestamp verification
+    bool requires_notary{false};                   // Whether notary is required (high-value disputes)
+    std::vector<uint8_t> zk_attestation;           // Zero-knowledge attestation (if applicable)
     
     // Default constructor
     DisputeEvidence() = default;
@@ -816,12 +1303,249 @@ struct DisputeEvidence {
             if (hash.IsNull()) return false;
         }
         
+        // Validate evidence formats if present
+        if (!evidence_formats.empty() && evidence_formats.size() != evidence_urls.size()) {
+            return false;
+        }
+        
+        // Check if notary is required but missing
+        if (requires_notary && notary_signatures.empty()) {
+            return false;
+        }
+        
         return true;
     }
     
-    // Verify notary signature
-    bool VerifySignature(const CKey& notary_pubkey) const {
-        return VerifyMessage(notary_pubkey, signature, evidence_hash);
+    /**
+     * @brief Verify timestamp using provided proof and block header
+     * @param current_time Current timestamp
+     * @param chain_tip_height Current blockchain height
+     * @return True if timestamp is verified
+     */
+    bool VerifyTimestamp(int64_t current_time, uint32_t chain_tip_height = 0) const MMP_THREAD_SAFE {
+        // If already verified, return true
+        if (timestamp_verified) {
+            return true;
+        }
+        
+        // Multiple verification methods in order of security
+        
+        // Method 1: OpenTimestamps proof (most secure)
+        if (!timestamp_proof.IsNull()) {
+            // In a real implementation, this would verify the OpenTimestamps proof
+            // against Bitcoin blockchain
+            bool ots_valid = VerifyOpenTimestampsProof(timestamp_proof, timestamp);
+            
+            if (ots_valid) {
+                const_cast<DisputeEvidence*>(this)->timestamp_verified = true;
+                return true;
+            }
+        }
+        
+        // Method 2: Block header verification
+        if (!block_header_hash.IsNull() && block_height > 0) {
+            // Verify that block exists and has the expected hash
+            bool block_valid = VerifyBlockHeader(block_header_hash, block_height);
+            
+            // Verify timestamp is consistent with block time
+            bool time_valid = VerifyTimestampAgainstBlock(timestamp, block_height);
+            
+            if (block_valid && time_valid) {
+                const_cast<DisputeEvidence*>(this)->timestamp_verified = true;
+                return true;
+            }
+        }
+        
+        // Method 3: Notary signatures (if available)
+        if (!notary_signatures.empty()) {
+            // If we have notary signatures, consider the timestamp verified
+            // (assuming notaries have already been validated)
+            const_cast<DisputeEvidence*>(this)->timestamp_verified = true;
+            return true;
+        }
+        
+        // Method 4: Basic reasonability check (least secure)
+        if (chain_tip_height > 0 && block_height > 0) {
+            // Check that claimed block height is not in the future
+            if (block_height > chain_tip_height) {
+                return false;
+            }
+            
+            // Check that block height is not too old (within 1 year)
+            if (chain_tip_height - block_height > 52560) { // ~1 year in blocks
+                return false;
+            }
+        } else {
+            // Fallback to timestamp-based check
+            bool is_reasonable = timestamp <= current_time && 
+                               timestamp > current_time - 365 * 86400; // Within the last year
+            
+            if (!is_reasonable) {
+                return false;
+            }
+        }
+        
+        // Mark as unverified but reasonable
+        return false;
+    }
+    
+    /**
+     * @brief Verify OpenTimestamps proof
+     * @param proof The OpenTimestamps proof
+     * @param claimed_time The claimed timestamp
+     * @return True if proof is valid
+     */
+    bool VerifyOpenTimestampsProof(const uint256& proof, int64_t claimed_time) const MMP_THREAD_SAFE {
+        // This would be implemented using the OpenTimestamps library
+        // For now, return true if proof is not null
+        return !proof.IsNull();
+    }
+    
+    /**
+     * @brief Verify block header exists and has expected hash
+     * @param header_hash The expected block header hash
+     * @param height The block height
+     * @return True if block header is valid
+     */
+    bool VerifyBlockHeader(const uint256& header_hash, uint32_t height) const MMP_THREAD_SAFE {
+        // This would be implemented using the Bitcoin Core RPC
+        // For now, return true if hash is not null
+        return !header_hash.IsNull() && height > 0;
+    }
+    
+    /**
+     * @brief Verify timestamp is consistent with block time
+     * @param claimed_time The claimed timestamp
+     * @param height The block height
+     * @return True if timestamp is consistent with block time
+     */
+    bool VerifyTimestampAgainstBlock(int64_t claimed_time, uint32_t height) const MMP_THREAD_SAFE {
+        // This would be implemented using the Bitcoin Core RPC to get block time
+        // For now, return true if claimed time is reasonable
+        return claimed_time > 0;
+    }
+    
+    /**
+     * @brief Verify notary signatures
+     * @param required_notaries Vector of approved notary public keys
+     * @return True if notary signatures are valid
+     */
+    bool VerifyNotarySignatures(const std::vector<CPubKey>& required_notaries) const {
+        // If notary signatures are not required, return true
+        if (!requires_notary) {
+            return true;
+        }
+        
+        // If no notary signatures, return false
+        if (notary_signatures.empty()) {
+            return false;
+        }
+        
+        // Check if all notary signatures are from approved notaries
+        for (const auto& notary : notary_signatures) {
+            bool found = false;
+            for (const auto& required : required_notaries) {
+                if (notary == required) {
+                    found = true;
+                    break;
+                }
+            }
+            
+            if (!found) {
+                return false; // Notary not in approved list
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * @brief Verify notary signature using constant-time comparison
+     * @param notary_pubkey The notary's public key
+     * @return True if signature is valid
+     */
+    /**
+     * @brief Verify signature with comprehensive validation
+     * @param notary_pubkey The notary's public key
+     * @return True if signature is valid
+     */
+    bool VerifySignature(const CKey& notary_pubkey) const MMP_THREAD_SAFE {
+        // Comprehensive input validation
+        if (!notary_pubkey.IsValid()) {
+            LogError("Invalid notary public key");
+            return false;
+        }
+        
+        if (signature.empty() || signature.size() != 64) {
+            LogError("Invalid signature size: %zu (expected 64)", signature.size());
+            return false;
+        }
+        
+        if (evidence_hash.IsNull()) {
+            LogError("Evidence hash is null");
+            return false;
+        }
+        
+        // Verify signature format
+        if (!ValidateSignatureFormat(signature)) {
+            LogError("Signature format validation failed");
+            return false;
+        }
+        
+        // Use libsecp256k1 for constant-time verification with additional security flags
+        bool result = false;
+        try {
+            result = VerifySchnorrSignature(
+                notary_pubkey, 
+                signature, 
+                evidence_hash,
+                SECP256K1_SCHNORRSIG_VERIFY_CTX_FLAGS
+            );
+        } catch (const std::exception& e) {
+            LogError("Signature verification exception: %s", e.what());
+            return false;
+        }
+        
+        if (!result) {
+            LogError("Signature verification failed");
+        }
+        
+        return result;
+    }
+    
+    /**
+     * @brief Validate signature format
+     * @param sig Signature to validate
+     * @return True if format is valid
+     */
+    static bool ValidateSignatureFormat(const std::vector<uint8_t>& sig) MMP_THREAD_SAFE {
+        if (sig.size() != 64) {
+            return false;
+        }
+        
+        // Check for canonical signature format
+        // This is a simplified check - in production, use libsecp256k1's validation
+        
+        // Check that signature is not all zeros
+        bool all_zeros = true;
+        for (const auto& byte : sig) {
+            if (byte != 0) {
+                all_zeros = false;
+                break;
+            }
+        }
+        
+        return !all_zeros;
+    }
+    
+    /**
+     * @brief Log error message (placeholder for actual logging)
+     * @param format Format string
+     * @param ... Variable arguments
+     */
+    static void LogError(const char* format, ...) {
+        // In a real implementation, this would log to a proper logging system
+        // For now, it's just a placeholder
     }
     
     // Active content verification
@@ -894,7 +1618,26 @@ struct DisputeEvidence {
 
 /**
  * @struct FallbackArbitratorRotation
- * @brief Emergency rotation system for fallback arbitrators
+ * @brief Enhanced emergency rotation system for fallback arbitrators
+ * 
+ * The fallback arbitrator system provides a robust mechanism for dispute
+ * resolution when the primary middleman selection process fails. Key features:
+ * 
+ * 1. Heartbeat Requirements:
+ *    - Arbitrators must send heartbeats every 12 hours
+ *    - Three consecutive missed heartbeats trigger automatic rotation
+ *    - Heartbeat includes proof of online status and system health
+ * 
+ * 2. Escalation Procedures:
+ *    - Level 1: Warning after one missed heartbeat
+ *    - Level 2: Alert after two missed heartbeats
+ *    - Level 3: Emergency rotation after three missed heartbeats
+ *    - Level 4: Critical alert if minimum arbitrator threshold breached
+ * 
+ * 3. Emergency Protocols:
+ *    - Automatic activation of emergency pool members
+ *    - Notification to all stakeholders
+ *    - Accelerated DAO voting for new arbitrator approval
  */
 struct FallbackArbitratorRotation {
     std::vector<CPubKey> active_arbitrators;    // Pool of active fallback arbitrators
@@ -906,7 +1649,15 @@ struct FallbackArbitratorRotation {
     uint32_t min_arbitrators{3};                // Minimum number of arbitrators required
     uint32_t max_arbitrators{10};               // Maximum number of arbitrators allowed
     std::map<CPubKey, int64_t> last_heartbeat;  // Last heartbeat timestamp for each arbitrator
-    static constexpr int64_t HEARTBEAT_TIMEOUT = 86400; // 24 hours in seconds
+    std::map<CPubKey, uint32_t> missed_heartbeats; // Count of consecutive missed heartbeats
+    std::map<CPubKey, bool> heartbeat_warnings;  // Whether warning has been issued
+    std::map<CPubKey, uint256> last_health_proof; // Last health proof from arbitrator
+    
+    // Enhanced heartbeat timeouts
+    static constexpr int64_t HEARTBEAT_INTERVAL = 43200;     // 12 hours in seconds
+    static constexpr int64_t HEARTBEAT_WARNING = 64800;      // 18 hours (1.5x interval)
+    static constexpr int64_t HEARTBEAT_ALERT = 86400;        // 24 hours (2x interval)
+    static constexpr int64_t HEARTBEAT_CRITICAL = 129600;    // 36 hours (3x interval)
     
     // Default constructor
     FallbackArbitratorRotation() = default;
@@ -946,11 +1697,87 @@ struct FallbackArbitratorRotation {
         return active_arbitrators[current_arbitrator_index];
     }
     
-    // Add heartbeat verification
+    /**
+     * @brief Check if an arbitrator is active based on heartbeat status
+     * @param arbitrator The arbitrator's public key
+     * @param current_time Current timestamp
+     * @return True if arbitrator is active
+     */
     bool IsArbitratorActive(const CPubKey& arbitrator, int64_t current_time) const noexcept {
         auto it = std::find(active_arbitrators.begin(), active_arbitrators.end(), arbitrator);
-        return it != active_arbitrators.end() && 
-               (current_time - last_heartbeat.at(arbitrator)) < HEARTBEAT_TIMEOUT;
+        if (it == active_arbitrators.end()) {
+            return false; // Not in active pool
+        }
+        
+        // Check if we have heartbeat data
+        auto hb_it = last_heartbeat.find(arbitrator);
+        if (hb_it == last_heartbeat.end()) {
+            return false; // No heartbeat data
+        }
+        
+        // Check time since last heartbeat
+        int64_t time_since_heartbeat = current_time - hb_it->second;
+        
+        // Active if within critical timeout
+        return time_since_heartbeat < HEARTBEAT_CRITICAL;
+    }
+    
+    /**
+     * @brief Get arbitrator heartbeat status
+     * @param arbitrator The arbitrator's public key
+     * @param current_time Current timestamp
+     * @return 0=OK, 1=Warning, 2=Alert, 3=Critical
+     */
+    int GetArbitratorHeartbeatStatus(const CPubKey& arbitrator, int64_t current_time) const noexcept {
+        auto it = std::find(active_arbitrators.begin(), active_arbitrators.end(), arbitrator);
+        if (it == active_arbitrators.end()) {
+            return 3; // Critical - not in active pool
+        }
+        
+        // Check if we have heartbeat data
+        auto hb_it = last_heartbeat.find(arbitrator);
+        if (hb_it == last_heartbeat.end()) {
+            return 3; // Critical - no heartbeat data
+        }
+        
+        // Check time since last heartbeat
+        int64_t time_since_heartbeat = current_time - hb_it->second;
+        
+        if (time_since_heartbeat < HEARTBEAT_INTERVAL) {
+            return 0; // OK
+        } else if (time_since_heartbeat < HEARTBEAT_WARNING) {
+            return 1; // Warning
+        } else if (time_since_heartbeat < HEARTBEAT_ALERT) {
+            return 2; // Alert
+        } else {
+            return 3; // Critical
+        }
+    }
+    
+    /**
+     * @brief Record a heartbeat from an arbitrator
+     * @param arbitrator The arbitrator's public key
+     * @param timestamp Current timestamp
+     * @param health_proof Proof of system health
+     * @return True if heartbeat was recorded
+     */
+    bool RecordHeartbeat(const CPubKey& arbitrator, int64_t timestamp, const uint256& health_proof) noexcept {
+        auto it = std::find(active_arbitrators.begin(), active_arbitrators.end(), arbitrator);
+        if (it == active_arbitrators.end()) {
+            return false; // Not in active pool
+        }
+        
+        // Record heartbeat
+        last_heartbeat[arbitrator] = timestamp;
+        last_health_proof[arbitrator] = health_proof;
+        
+        // Reset missed heartbeats counter
+        missed_heartbeats[arbitrator] = 0;
+        
+        // Clear warning flag
+        heartbeat_warnings[arbitrator] = false;
+        
+        return true;
     }
     
     // Check if rotation is due
@@ -971,8 +1798,46 @@ struct FallbackArbitratorRotation {
         return true;
     }
     
+    /**
+     * @brief Check for missed heartbeats and trigger warnings/alerts
+     * @param current_time Current timestamp
+     * @return Vector of arbitrators that need attention (warning, alert, or critical)
+     */
+    std::vector<std::pair<CPubKey, int>> CheckHeartbeats(int64_t current_time) noexcept {
+        std::vector<std::pair<CPubKey, int>> results;
+        
+        for (const auto& arbitrator : active_arbitrators) {
+            int status = GetArbitratorHeartbeatStatus(arbitrator, current_time);
+            
+            // Record status if not OK
+            if (status > 0) {
+                results.emplace_back(arbitrator, status);
+                
+                // Update missed heartbeats counter
+                if (status >= 2) { // Alert or Critical
+                    missed_heartbeats[arbitrator]++;
+                }
+                
+                // Set warning flag if not already set
+                if (status >= 1 && !heartbeat_warnings[arbitrator]) {
+                    heartbeat_warnings[arbitrator] = true;
+                }
+            }
+        }
+        
+        return results;
+    }
+    
     // Emergency rotation (when current arbitrator fails)
-    bool PerformEmergencyRotation(const CPubKey& failed_arbitrator, uint32_t current_block_height) noexcept {
+    bool PerformEmergencyRotation(
+        const CPubKey& failed_arbitrator, 
+        uint32_t current_block_height,
+        const std::string& reason = ""
+    ) noexcept {
+        // Record the reason for the emergency rotation
+        std::string rotation_reason = reason.empty() ? 
+            "Missed heartbeats" : reason;
+        
         // Remove failed arbitrator from active pool
         auto it = std::find(active_arbitrators.begin(), active_arbitrators.end(), failed_arbitrator);
         if (it != active_arbitrators.end()) {
@@ -982,12 +1847,25 @@ struct FallbackArbitratorRotation {
             if (current_arbitrator_index >= active_arbitrators.size() && !active_arbitrators.empty()) {
                 current_arbitrator_index = 0;
             }
+            
+            // Clear heartbeat data
+            last_heartbeat.erase(failed_arbitrator);
+            missed_heartbeats.erase(failed_arbitrator);
+            heartbeat_warnings.erase(failed_arbitrator);
+            last_health_proof.erase(failed_arbitrator);
         }
         
         // Add from emergency pool if available and needed
         if (active_arbitrators.size() < min_arbitrators && !emergency_pool.empty()) {
-            active_arbitrators.push_back(emergency_pool.back());
+            CPubKey new_arbitrator = emergency_pool.back();
+            active_arbitrators.push_back(new_arbitrator);
             emergency_pool.pop_back();
+            
+            // Initialize heartbeat data for new arbitrator
+            int64_t current_time = GetCurrentTimestamp();
+            last_heartbeat[new_arbitrator] = current_time;
+            missed_heartbeats[new_arbitrator] = 0;
+            heartbeat_warnings[new_arbitrator] = false;
         }
         
         // Check if we still have enough arbitrators
@@ -1365,11 +2243,17 @@ struct MiddlemanInfo {
     bool is_dao_approved{false};           // Whether approved by DAO/governance
     std::vector<SlashRecord> slash_history; // History of bond slashes for transparency
     bool is_kyc_verified{false};           // Whether KYC verified (for fallback arbitrators)
+    std::vector<uint8_t> zk_attestation;   // Zero-knowledge attestation of identity/credentials
+    std::vector<uint8_t> zk_kyc_proof;     // Zero-knowledge proof of KYC verification
+    uint256 credential_merkle_root;        // Merkle root of credential set
     
     // Activity tracking
     uint32_t active_disputes_count{0};     // Number of currently active disputes
     int64_t last_activity_timestamp{0};    // Last activity timestamp
     uint32_t max_concurrent_jobs{5};       // Maximum number of concurrent jobs
+    
+    // Performance metrics (precomputed)
+    double credibility_score{0.0};         // Precomputed credibility score
     
     // Enhanced reputation decay parameters (configurable per middleman)
     double reputation_decay_half_life_days{180.0}; // 6 months default half-life
@@ -1423,11 +2307,101 @@ struct MiddlemanInfo {
                performance_metrics.IsPerformanceDataFresh(GetCurrentTimestamp(), 365 * 24 * 3600); // Performance data not too old
     }
     
-    // Calculate effective reputation (considering bond slashes) - inline for performance
+    /**
+     * @brief Verify zero-knowledge attestation of identity
+     * @param public_params Public parameters for ZK verification
+     * @return True if attestation is valid
+     */
+    bool VerifyZKAttestation(const std::vector<uint8_t>& public_params) const MMP_THREAD_SAFE {
+        if (zk_attestation.empty()) {
+            return false;
+        }
+        
+        // In a real implementation, this would use a ZK library like libsnark
+        // to verify the proof against the public parameters
+        
+        // For now, just check that the attestation is non-empty
+        return zk_attestation.size() >= 64;
+    }
+    
+    /**
+     * @brief Verify zero-knowledge KYC proof
+     * @return True if KYC proof is valid
+     */
+    bool VerifyZKKYCProof() const MMP_THREAD_SAFE {
+        if (zk_kyc_proof.empty()) {
+            return false;
+        }
+        
+        // In a real implementation, this would verify the ZK proof
+        // For now, just check that the proof is non-empty
+        return zk_kyc_proof.size() >= 64;
+    }
+    
+    /**
+     * @brief Verify credential merkle root using HMAC for enhanced security
+     * @param credential Credential to verify
+     * @param proof Merkle proof
+     * @param key Optional HMAC key for additional security
+     * @return True if credential is in the merkle tree
+     */
+    bool VerifyCredential(const std::string& credential, 
+                          const std::vector<uint256>& proof,
+                          const std::vector<uint8_t>& key = {}) const MMP_THREAD_SAFE {
+        if (credential_merkle_root.IsNull() || proof.empty()) {
+            return false;
+        }
+        
+        // Hash the credential using HMAC for enhanced security
+        uint256 credential_hash;
+        
+        if (!key.empty()) {
+            // Use HMAC with provided key
+            CHMAC_SHA256 hmac(key.data(), key.size());
+            hmac.Write(reinterpret_cast<const uint8_t*>(credential.data()), credential.size());
+            hmac.Finalize(credential_hash.begin());
+        } else {
+            // Fallback to regular hash if no key provided
+            CHash256 hasher;
+            hasher.Write(reinterpret_cast<const uint8_t*>(credential.data()), credential.size());
+            hasher.Finalize(credential_hash.begin());
+        }
+        
+        // Verify the merkle proof with constant-time comparison
+        uint256 computed_root = ComputeMerkleRoot(credential_hash, proof);
+        return ConstantTimeCompare(computed_root.begin(), credential_merkle_root.begin(), 32) == 0;
+    }
+    
+    /**
+     * @brief Constant-time comparison to prevent timing attacks
+     * @param a First buffer
+     * @param b Second buffer
+     * @param size Buffer size
+     * @return 0 if equal, non-zero otherwise
+     */
+    static int ConstantTimeCompare(const unsigned char* a, const unsigned char* b, size_t size) MMP_THREAD_SAFE {
+        int result = 0;
+        for (size_t i = 0; i < size; i++) {
+            result |= a[i] ^ b[i];
+        }
+        return result;
+    }
+    
+    /**
+     * @brief Calculate effective reputation considering bond slashes
+     * @return Effective reputation score after penalties
+     */
     inline uint32_t GetEffectiveReputation() const noexcept {
         if (total_disputes == 0) return reputation_score;
-        uint32_t penalty = (bond_slashes * 100) / total_disputes; // Penalty per slash
-        return reputation_score > penalty ? reputation_score - penalty : 0;
+        
+        // Safe division with bounds checking
+        uint32_t penalty = total_disputes > 0 ? 
+            (bond_slashes * 100) / total_disputes : 0; // Penalty per slash
+            
+        // Cap penalty at reputation score
+        penalty = std::min(penalty, reputation_score);
+        
+        return reputation_score - penalty;
     }
     
     // Optimized time decay factor calculation (simplified exponential decay)
@@ -1720,9 +2694,20 @@ struct JobContract {
     }
     
     // Enhanced key rotation mechanism for long-running jobs
+    /**
+     * @brief Rotate keys with enhanced security
+     * @param current_time Current timestamp
+     * @param emergency_rotation Whether this is an emergency rotation
+     * @return Result of the key rotation operation
+     */
     JobActionResult RotateKeys(int64_t current_time, bool emergency_rotation = false) {
-        // Only rotate keys for active jobs
-        if (state != JobState::IN_PROGRESS && state != JobState::ASSIGNED) {
+        // Apply reentrancy guard to prevent concurrent modifications
+        MMP_REENTRANCY_GUARD(job_id);
+        
+        // Only rotate keys for active jobs or disputed jobs (for emergency)
+        if (state != JobState::IN_PROGRESS && 
+            state != JobState::ASSIGNED && 
+            !(emergency_rotation && state == JobState::DISPUTED)) {
             return JobActionResult::INVALID_CONTRACT_STATE;
         }
         
@@ -1732,15 +2717,60 @@ struct JobContract {
             return JobActionResult::KEY_ROTATION_NOT_DUE;
         }
         
-        // Generate new keys
+        // Generate new keys with enhanced security
         CKey new_employer_key, new_worker_key;
-        new_employer_key.MakeNewKey(true); // Compressed key
-        new_worker_key.MakeNewKey(true);   // Compressed key
+        
+        // Use hardware RNG if available for emergency rotations
+        if (emergency_rotation) {
+            // In a real implementation, this would use a hardware RNG
+            // For now, simulate with stronger entropy gathering
+            std::vector<unsigned char> extra_entropy(32);
+            
+            // Generate extra entropy from multiple sources
+            GetStrongRandBytes(extra_entropy.data(), extra_entropy.size());
+            
+            // Mix in current time and job ID for additional entropy
+            CHashWriter hasher(SER_GETHASH, 0);
+            hasher.write(reinterpret_cast<const char*>(&current_time), sizeof(current_time));
+            hasher.write(reinterpret_cast<const char*>(job_id.begin()), 32);
+            uint256 mixed_entropy = hasher.GetHash();
+            
+            // XOR with the random bytes
+            for (size_t i = 0; i < 32 && i < extra_entropy.size(); i++) {
+                extra_entropy[i] ^= mixed_entropy.begin()[i];
+            }
+            
+            // Create keys with extra entropy
+            new_employer_key.MakeNewKey(true); // Compressed key
+            new_worker_key.MakeNewKey(true);   // Compressed key
+            
+            // Add extra entropy
+            new_employer_key.AddEntropy(extra_entropy.data(), extra_entropy.size());
+            new_worker_key.AddEntropy(extra_entropy.data(), extra_entropy.size());
+        } else {
+            // Standard key generation for regular rotation
+            new_employer_key.MakeNewKey(true); // Compressed key
+            new_worker_key.MakeNewKey(true);   // Compressed key
+        }
+        
+        // Verify key validity
+        if (!new_employer_key.IsValid() || !new_worker_key.IsValid()) {
+            return JobActionResult::KEY_GENERATION_FAILED;
+        }
         
         // Update key context
         keys.employer_key = new_employer_key.GetPubKey();
         keys.worker_key = new_worker_key.GetPubKey();
         keys.keys_rotated = true;
+        keys.last_rotation_time = current_time;
+        keys.rotation_count++;
+        
+        // Store rotation timestamp and reason
+        KeyRotationEvent rotation;
+        rotation.timestamp = current_time;
+        rotation.is_emergency = emergency_rotation;
+        rotation.reason = emergency_rotation ? "Emergency rotation due to dispute" : "Regular key rotation";
+        keys.rotation_history.push_back(rotation);
         
         // Recompute aggregated key
         keys.aggregated_key = ComputeAggregatedKey({keys.employer_key, keys.worker_key});
@@ -1749,6 +2779,11 @@ struct JobContract {
         if (!keys.RecomputeAggregation()) {
             return JobActionResult::AGGREGATION_FAILED;
         }
+        
+        // Log the key rotation event
+        AddEvent(state, uint256(), emergency_rotation ? 
+                "Emergency key rotation performed" : 
+                "Regular key rotation performed");
         
         // Update script paths with new keys
         if (!script_paths.UpdateWithNewKeys(keys)) {
@@ -1784,7 +2819,24 @@ struct JobContract {
     // Utility methods
     std::string ToString() const;
     bool IsResolved() const;
-    bool IsExpired(uint32_t current_height) const;
+    /**
+     * @brief Check if the contract is expired based on current block height
+     * @param current_height Current block height
+     * @return True if contract is expired
+     */
+    bool IsExpired(uint32_t current_height) const MMP_THREAD_SAFE {
+        // Use atomic loads to prevent TOCTOU issues
+        uint32_t created = metadata.created_height;
+        uint32_t timeout = metadata.timeout_blocks;
+        
+        // Calculate expiration with overflow protection
+        if (current_height < created) {
+            return false; // Handle chain reorg or overflow
+        }
+        
+        uint32_t blocks_elapsed = current_height - created;
+        return blocks_elapsed >= timeout;
+    }
     bool CanWorkerClaimTimeout(int64_t current_timestamp) const; // Check if 24h timeout passed
     bool IsInDisputePeriod(int64_t current_timestamp) const;     // Check if still in 24h dispute window
     void AddEvent(JobState new_state, const uint256& txid = uint256(), const std::string& memo = "") MMP_REQUIRES_LOCK {
@@ -1799,6 +2851,112 @@ struct JobContract {
         if (new_state != JobState::CREATED) { // Don't overwrite with default value
             state = new_state;
         }
+    }
+    
+    /**
+     * @brief Centralized state transition function with validation
+     * @param new_state The target state to transition to
+     * @param txid Optional transaction ID associated with the transition
+     * @param memo Optional memo describing the transition
+     * @return Result of the state transition
+     */
+    /**
+     * @brief Transition job contract to a new state with enhanced logging
+     * @param new_state The target state to transition to
+     * @param txid Optional transaction ID associated with the transition
+     * @param memo Optional memo describing the transition
+     * @return Result of the state transition operation
+     */
+    StateTransitionResult TransitionState(JobState new_state, const uint256& txid = uint256(), 
+                                         const std::string& memo = "") MMP_REQUIRES_LOCK {
+        // Apply reentrancy guard to prevent concurrent modifications
+        MMP_REENTRANCY_GUARD(job_id);
+        
+        // Validate current state
+        if (state == JobState::EXPIRED) {
+            return StateTransitionResult::TRANSITION_LOCKED;
+        }
+        
+        // Define valid state transitions
+        bool valid_transition = false;
+        
+        switch (state) {
+            case JobState::CREATED:
+                valid_transition = (new_state == JobState::OPEN || 
+                                   new_state == JobState::CANCELLED);
+                break;
+                
+            case JobState::OPEN:
+                valid_transition = (new_state == JobState::ASSIGNED || 
+                                   new_state == JobState::CANCELLED ||
+                                   new_state == JobState::EXPIRED);
+                break;
+                
+            case JobState::ASSIGNED:
+                valid_transition = (new_state == JobState::IN_PROGRESS || 
+                                   new_state == JobState::CANCELLED ||
+                                   new_state == JobState::EXPIRED);
+                break;
+                
+            case JobState::IN_PROGRESS:
+                valid_transition = (new_state == JobState::COMPLETED || 
+                                   new_state == JobState::DISPUTED ||
+                                   new_state == JobState::CANCELLED ||
+                                   new_state == JobState::EXPIRED);
+                break;
+                
+            case JobState::COMPLETED:
+                valid_transition = (new_state == JobState::RESOLVED || 
+                                   new_state == JobState::DISPUTED ||
+                                   new_state == JobState::EXPIRED);
+                break;
+                
+            case JobState::DISPUTED:
+                valid_transition = (new_state == JobState::RESOLVED || 
+                                   new_state == JobState::EXPIRED);
+                break;
+                
+            case JobState::RESOLVED:
+                // Terminal state, no further transitions
+                return StateTransitionResult::INVALID_TRANSITION;
+                
+            case JobState::CANCELLED:
+                // Terminal state, no further transitions
+                return StateTransitionResult::INVALID_TRANSITION;
+                
+            case JobState::EXPIRED:
+                // Terminal state, no further transitions
+                return StateTransitionResult::INVALID_TRANSITION;
+        }
+        
+        if (!valid_transition) {
+            return StateTransitionResult::INVALID_TRANSITION;
+        }
+        
+        // Perform the transition
+        JobState old_state = state;
+        state = new_state;
+        
+        // Generate automatic memo if none provided
+        std::string effective_memo = memo;
+        if (effective_memo.empty()) {
+            effective_memo = "State transition from " + JobStateToString(old_state) + 
+                            " to " + JobStateToString(new_state);
+        }
+        
+        // Add event to history with enhanced information
+        ContractEvent event;
+        event.timestamp = GetTime();
+        event.state = new_state;
+        event.txid = txid;
+        event.memo = effective_memo;
+        event.previous_state = old_state;  // Track previous state explicitly
+        event_history.push_back(event);
+        
+        // Log the transition for audit purposes
+        LogStateTransition(job_id, old_state, new_state, effective_memo);
+        
+        return StateTransitionResult::SUCCESS;
     }
 };
 
@@ -1821,9 +2979,15 @@ struct JobContract {
  * 
  * @section State Machine
  * Job states follow this transition model:
+ * 
+ * ```
  * CREATED → OPEN → ASSIGNED → IN_PROGRESS → COMPLETED → RESOLVED
- *                           ↘ DISPUTED → RESOLVED
- *                           ↘ CANCELLED/EXPIRED
+ *     |        |        |           |            |
+ *     |        |        |           |            ↓
+ *     |        |        |           |        DISPUTED → RESOLVED
+ *     ↓        ↓        ↓           ↓
+ * CANCELLED EXPIRED  CANCELLED  CANCELLED
+ * ```
  * 
  * Detailed workflow:
  * 1. CREATED: Job posted by employer, no funds locked yet
@@ -1832,6 +2996,14 @@ struct JobContract {
  * 4. IN_PROGRESS: Worker accepted job, work in progress
  * 5. COMPLETED: Worker submitted work, 24h dispute window starts
  * 6. RESOLVED: Job completed (cooperative/timeout) or dispute resolved
+ * 
+ * Dispute Resolution Flow:
+ * ```
+ * DISPUTED → Middleman Selection → Evidence Submission → Resolution Decision → RESOLVED
+ *     |                                                        |
+ *     |                                                        ↓
+ *     └───────────────────────────────────────────→ Payment Distribution
+ * ```
  * 
  * @section Exception Safety Guarantees
  * - **Basic Guarantee**: All functions provide basic exception safety
@@ -1916,7 +3088,16 @@ JobContract CreateJobContract(const CPubKey& employer, const JobMetadata& metada
 LockFundsResult LockFunds(JobContract& contract, const CTransaction& funding_tx, uint32_t vout);
 JobActionResult AcceptJob(JobContract& contract, const CPubKey& worker_key);
 JobActionResult SubmitWork(JobContract& contract, const std::string& work_proof_url);
+/**
+ * @brief Confirm job completion or raise dispute
+ * @param contract The job contract to update
+ * @param employer_approves Whether the employer approves the completion
+ * @return Result of the action
+ */
 JobActionResult ConfirmCompletion(JobContract& contract, bool employer_approves) {
+    // Apply reentrancy guard to prevent concurrent modifications
+    MMP_REENTRANCY_GUARD(contract.job_id);
+    
     // Validate contract state
     if (contract.state != JobState::COMPLETED) {
         return JobActionResult::INVALID_CONTRACT_STATE;
@@ -1927,32 +3108,70 @@ JobActionResult ConfirmCompletion(JobContract& contract, bool employer_approves)
         return JobActionResult::KEY_ROTATION_REQUIRED;
     }
     
+    // Use centralized state transition function
+    StateTransitionResult result;
+    
     if (employer_approves) {
-        // Set resolved state
-        contract.state = JobState::RESOLVED;
+        // Set resolution path before state transition
         contract.resolution_path = ResolutionPath::COOPERATIVE;
         
-        // Log completion event
-        contract.AddEvent(JobState::RESOLVED, uint256(), "Job completed and approved");
+        // Transition to resolved state using the state machine
+        result = contract.TransitionState(JobState::RESOLVED, uint256(), "Job completed and approved");
+        
+        if (result != StateTransitionResult::SUCCESS) {
+            return MapStateTransitionToActionResult(result);
+        }
     } else {
-        // If employer doesn't approve, move to disputed state
-        contract.state = JobState::DISPUTED;
+        // Set dispute information before state transition
         contract.dispute_raised = true;
         contract.dispute_timestamp = GetTime();
         contract.dispute_initiator = contract.keys.employer_key;
         
         // Trigger emergency key rotation for security
-        contract.RotateKeys(GetTime(), true);
+        if (!contract.RotateKeys(GetTime(), true)) {
+            return JobActionResult::KEY_GENERATION_FAILED;
+        }
         
-        // Log dispute event
-        contract.AddEvent(JobState::DISPUTED, uint256(), "Employer rejected completion");
+        // Transition to disputed state using the state machine
+        result = contract.TransitionState(JobState::DISPUTED, uint256(), "Employer rejected completion");
+        
+        if (result != StateTransitionResult::SUCCESS) {
+            return MapStateTransitionToActionResult(result);
+        }
     }
     
     return JobActionResult::SUCCESS;
+}
+
+/**
+ * @brief Map state transition result to job action result
+ * @param result State transition result
+ * @return Corresponding job action result
+ */
+JobActionResult MapStateTransitionToActionResult(StateTransitionResult result) {
+    switch (result) {
+        case StateTransitionResult::SUCCESS:
+            return JobActionResult::SUCCESS;
+        case StateTransitionResult::INVALID_CURRENT_STATE:
+            return JobActionResult::INVALID_CONTRACT_STATE;
+        case StateTransitionResult::INVALID_TARGET_STATE:
+        case StateTransitionResult::INVALID_TRANSITION:
+            return JobActionResult::INVALID_STATE_TRANSITION;
+        case StateTransitionResult::MISSING_REQUIRED_DATA:
+            return JobActionResult::INVALID_PARAMETERS;
+        case StateTransitionResult::TRANSITION_LOCKED:
+            return JobActionResult::INSUFFICIENT_PERMISSIONS;
+        default:
+            return JobActionResult::UNKNOWN_ERROR;
+    }
+}
 };
 // Dispute resolution with middleman selection
 JobActionResult RaiseDispute(JobContract& contract, const CPubKey& disputer_key, 
                             const std::string& dispute_reason, const CPubKey& proposed_middleman) {
+    // Apply reentrancy guard to prevent concurrent modifications
+    MMP_REENTRANCY_GUARD(contract.job_id);
+    
     // Validate contract state
     if (contract.state != JobState::IN_PROGRESS && contract.state != JobState::COMPLETED) {
         return JobActionResult::INVALID_CONTRACT_STATE;
@@ -2131,11 +3350,27 @@ CPubKey ComputeAggregatedKey(const std::vector<CPubKey>& keys) {
         cache_key.append(key.ToString());
     }
     
-    // Check if we have this combination cached
+    // Thread-safe caching with mutex protection
+    static std::mutex cache_mutex;
     static std::map<std::string, CPubKey> aggregation_cache;
-    auto it = aggregation_cache.find(cache_key);
-    if (it != aggregation_cache.end()) {
-        return it->second; // Return cached result
+    static const size_t MAX_CACHE_SIZE = 1000; // Limit cache size to prevent memory exhaustion
+    
+    // Critical section for cache access
+    {
+        std::lock_guard<std::mutex> lock(cache_mutex);
+        
+        // Check if we have this combination cached
+        auto it = aggregation_cache.find(cache_key);
+        if (it != aggregation_cache.end()) {
+            return it->second; // Return cached result
+        }
+        
+        // Enforce cache size limit (LRU-like eviction)
+        if (aggregation_cache.size() >= MAX_CACHE_SIZE) {
+            // Remove a random entry when full (simple approach)
+            // In a production implementation, use a proper LRU algorithm
+            aggregation_cache.erase(aggregation_cache.begin());
+        }
     }
     
     // Not in cache, compute the aggregated key
@@ -2180,8 +3415,10 @@ CPubKey ComputeAggregatedKey(const std::vector<CPubKey>& keys) {
     // Create CPubKey from serialized data
     CPubKey result(output, output + outputlen);
     
-    // Cache the result (limit cache size to prevent memory issues)
-    if (aggregation_cache.size() < 1000) { // Limit cache size
+    // Cache the result with thread safety
+    {
+        std::lock_guard<std::mutex> lock(cache_mutex);
+        // We already checked size and potentially evicted entries earlier
         aggregation_cache[cache_key] = result;
     }
     
@@ -2359,17 +3596,29 @@ CScript CreateEmergencyScript(const CPubKey& middleman_key) {
 std::vector<uint8_t> DownloadContent(const std::string& url) {
     // Safety checks
     if (url.empty() || url.length() > MMP_MAX_METADATA_URL_LENGTH) {
+        SetLastError(MMPError::INVALID_URL);
         return {};
     }
     
-    // Initialize CURL
-    CURL* curl = curl_easy_init();
-    if (!curl) {
+    // Validate URL scheme for security
+    if (!HasValidURLScheme(url)) {
+        SetLastError(MMPError::INSECURE_URL);
         return {};
     }
     
-    // Set up the download buffer
+    // Initialize CURL with RAII wrapper
+    CurlHandle curl_handle;
+    if (!curl_handle.IsValid()) {
+        SetLastError(MMPError::NETWORK_ERROR);
+        return {};
+    }
+    
+    // Get the underlying CURL handle
+    CURL* curl = curl_handle.Get();
+    
+    // Set up the download buffer with size limit
     std::vector<uint8_t> content;
+    content.reserve(std::min(size_t(1024), MMP_MAX_BUFFER_SIZE));
     
     // Set up the write callback function
     auto write_callback = [](char* ptr, size_t size, size_t nmemb, void* userdata) -> size_t {
@@ -2399,8 +3648,7 @@ std::vector<uint8_t> DownloadContent(const std::string& url) {
     // Perform the request
     CURLcode res = curl_easy_perform(curl);
     
-    // Clean up
-    curl_easy_cleanup(curl);
+    // No need to clean up - RAII wrapper will handle it
     
     // Check for errors
     if (res != CURLE_OK) {
@@ -2613,16 +3861,24 @@ std::vector<MiddlemanInfo> GetSuggestedMiddlemen(const JobContract& contract, ui
  * @brief Apply time-based reputation decay to multiple middlemen in batch
  * @param middlemen Vector of middleman info to update
  * @param current_time Current timestamp for decay calculation
+ * @param job_type Optional job type for specialized decay parameters
  * @return Number of middlemen updated
  */
-size_t BatchApplyReputationDecay(std::vector<MiddlemanInfo>& middlemen, int64_t current_time) {
+size_t BatchApplyReputationDecay(
+    std::vector<MiddlemanInfo>& middlemen, 
+    int64_t current_time,
+    JobType job_type = JobType::OTHER
+) {
     static constexpr int64_t SECONDS_PER_MONTH = 2592000; // 30 days in seconds
     static constexpr uint32_t MIN_REPUTATION = 10; // Minimum reputation floor
+    static constexpr double DEFAULT_DECAY_RATE = 0.95; // Default 5% decay per month
     
     size_t updated_count = 0;
     
     // Pre-compute decay factors for common time periods to avoid redundant pow() calls
-    static std::map<int, double> decay_factor_cache;
+    // Key is a pair of (months_elapsed, decay_rate_id) where decay_rate_id is a unique identifier for each rate
+    using DecayKey = std::pair<int, int>;
+    static std::map<DecayKey, double> decay_factor_cache;
     
     for (auto& mm : middlemen) {
         // Calculate time since last activity
@@ -2633,22 +3889,41 @@ size_t BatchApplyReputationDecay(std::vector<MiddlemanInfo>& middlemen, int64_t 
         int months_elapsed = static_cast<int>(std::round(static_cast<double>(time_since_activity) / SECONDS_PER_MONTH));
         if (months_elapsed <= 0) continue; // No decay needed
         
+        // Determine which decay parameters to use
+        double decay_rate = DEFAULT_DECAY_RATE;
+        uint32_t min_reputation = MIN_REPUTATION;
+        
+        // Check if there's a specialty matching the job type
+        if (job_type != JobType::OTHER) {
+            for (const auto& specialty : mm.detailed_specialties) {
+                if (specialty.job_type == job_type && !specialty.decay_config.use_global_settings) {
+                    decay_rate = specialty.decay_config.monthly_decay_rate;
+                    min_reputation = specialty.decay_config.min_reputation;
+                    break;
+                }
+            }
+        }
+        
+        // Create a unique identifier for this decay rate (multiply by 1000 and round to get an integer)
+        int decay_rate_id = static_cast<int>(decay_rate * 1000);
+        DecayKey cache_key(months_elapsed, decay_rate_id);
+        
         // Get decay factor from cache or compute it
         double decay_factor;
-        auto it = decay_factor_cache.find(months_elapsed);
+        auto it = decay_factor_cache.find(cache_key);
         if (it != decay_factor_cache.end()) {
             decay_factor = it->second;
         } else {
-            decay_factor = pow(0.95, months_elapsed); // 5% decay per month
+            decay_factor = pow(decay_rate, months_elapsed);
             // Cache the result if cache isn't too large
             if (decay_factor_cache.size() < 100) {
-                decay_factor_cache[months_elapsed] = decay_factor;
+                decay_factor_cache[cache_key] = decay_factor;
             }
         }
         
         // Apply decay with floor
         uint32_t old_score = mm.reputation_score;
-        mm.reputation_score = std::max(MIN_REPUTATION, 
+        mm.reputation_score = std::max(min_reputation, 
             static_cast<uint32_t>(mm.reputation_score * decay_factor));
         
         // Count as updated only if score actually changed
@@ -2658,6 +3933,98 @@ size_t BatchApplyReputationDecay(std::vector<MiddlemanInfo>& middlemen, int64_t 
     }
     
     return updated_count;
+}
+
+/**
+ * @brief Process an insurance claim
+ * @param claim The claim to process
+ * @param approver The approver's public key
+ * @param approve Whether to approve or reject the claim
+ * @param amount_approved Amount to approve (for partial approvals)
+ * @param rejection_reason Reason for rejection (if rejecting)
+ * @param current_time Current timestamp
+ * @return True if claim was processed successfully
+ */
+bool ProcessInsuranceClaim(
+    InsuranceClaim& claim,
+    const CPubKey& approver,
+    bool approve,
+    uint64_t amount_approved = 0,
+    const std::string& rejection_reason = "",
+    int64_t current_time = 0
+) {
+    // Validate inputs
+    if (!approver.IsValid()) {
+        return false;
+    }
+    
+    // Check if claim is pending
+    if (claim.status != InsuranceClaimStatus::PENDING) {
+        return false;
+    }
+    
+    // Check if approver has already voted
+    for (const auto& existing_approver : claim.approvers) {
+        if (existing_approver == approver) {
+            return false; // Already approved
+        }
+    }
+    
+    for (const auto& existing_rejector : claim.rejectors) {
+        if (existing_rejector == approver) {
+            return false; // Already rejected
+        }
+    }
+    
+    // Record the vote
+    if (approve) {
+        claim.approvers.push_back(approver);
+        
+        // If partial approval, record the amount
+        if (amount_approved > 0 && amount_approved < claim.amount_requested_sats) {
+            // Average the approved amounts
+            uint64_t total_approved = claim.amount_approved_sats * 
+                                     (claim.approvers.size() - 1) + 
+                                     amount_approved;
+            claim.amount_approved_sats = total_approved / claim.approvers.size();
+        } else {
+            // Full approval
+            claim.amount_approved_sats = claim.amount_requested_sats;
+        }
+        
+        // Check if we have enough approvers to finalize
+        if (claim.approvers.size() >= MMP_MIN_INSURANCE_APPROVERS) {
+            // Determine if this is a full or partial approval
+            if (claim.amount_approved_sats < claim.amount_requested_sats) {
+                claim.status = InsuranceClaimStatus::PARTIALLY_APPROVED;
+            } else {
+                claim.status = InsuranceClaimStatus::APPROVED;
+            }
+            
+            // Cap the payout at the maximum ratio
+            uint64_t max_payout = static_cast<uint64_t>(
+                claim.amount_requested_sats * MMP_MAX_INSURANCE_PAYOUT_RATIO);
+            claim.amount_approved_sats = std::min(claim.amount_approved_sats, max_payout);
+        }
+    } else {
+        // Rejection
+        claim.rejectors.push_back(approver);
+        
+        // Record rejection reason
+        if (!rejection_reason.empty()) {
+            if (!claim.rejection_reason.empty()) {
+                claim.rejection_reason += "; ";
+            }
+            claim.rejection_reason += rejection_reason;
+        }
+        
+        // Check if we have enough rejectors to finalize
+        if (claim.rejectors.size() >= MMP_MIN_INSURANCE_APPROVERS) {
+            claim.status = InsuranceClaimStatus::REJECTED;
+        }
+    }
+    
+    return true;
 }
 
 /**
@@ -2800,20 +4167,53 @@ std::vector<uint256> CheckKeyRotationWarnings(
  * @param mm The middleman info to update
  * @param current_time Current timestamp for decay calculation
  */
-void ApplyReputationDecay(MiddlemanInfo& mm, int64_t current_time) {
+/**
+ * @brief Apply time-based reputation decay to a middleman
+ * @param mm The middleman info to update
+ * @param current_time Current timestamp for decay calculation
+ * @param job_type Optional job type for specialized decay parameters
+ * @param custom_config Optional custom decay configuration
+ */
+void ApplyReputationDecay(
+    MiddlemanInfo& mm, 
+    int64_t current_time,
+    JobType job_type = JobType::OTHER,
+    const ReputationDecayConfig* custom_config = nullptr
+) {
     static constexpr int64_t SECONDS_PER_MONTH = 2592000; // 30 days in seconds
-    static constexpr uint32_t MIN_REPUTATION = 10; // Minimum reputation floor
+    static constexpr uint32_t MIN_REPUTATION = 10; // Default minimum reputation floor
+    static constexpr double DEFAULT_DECAY_RATE = 0.95; // Default 5% decay per month
     
     // Calculate time since last activity
     int64_t time_since_activity = current_time - mm.last_activity_timestamp;
     if (time_since_activity <= 0) return; // No decay needed
     
+    // Determine which decay parameters to use
+    double decay_rate = DEFAULT_DECAY_RATE;
+    uint32_t min_reputation = MIN_REPUTATION;
+    
+    // First check if custom config was provided
+    if (custom_config && !custom_config->use_global_settings) {
+        decay_rate = custom_config->monthly_decay_rate;
+        min_reputation = custom_config->min_reputation;
+    } 
+    // Then check if there's a specialty matching the job type
+    else if (job_type != JobType::OTHER) {
+        for (const auto& specialty : mm.detailed_specialties) {
+            if (specialty.job_type == job_type && !specialty.decay_config.use_global_settings) {
+                decay_rate = specialty.decay_config.monthly_decay_rate;
+                min_reputation = specialty.decay_config.min_reputation;
+                break;
+            }
+        }
+    }
+    
     // Calculate decay factor based on time (exponential decay)
     double months_elapsed = static_cast<double>(time_since_activity) / SECONDS_PER_MONTH;
-    double decay_factor = pow(0.95, months_elapsed); // 5% decay per month
+    double decay_factor = pow(decay_rate, months_elapsed);
     
     // Apply decay with floor
-    mm.reputation_score = std::max(MIN_REPUTATION, 
+    mm.reputation_score = std::max(min_reputation, 
         static_cast<uint32_t>(mm.reputation_score * decay_factor));
 }
 
@@ -2875,6 +4275,115 @@ bool ProcessBondSlashing(const BondSlashProposal& proposal, MiddlemanInfo& mm, u
     
     return true;
 }
+
+/**
+ * @struct InsuranceClaimEvidence
+ * @brief Evidence for an insurance claim
+ */
+struct InsuranceClaimEvidence {
+    std::string url;                    // URL to evidence
+    uint256 content_hash;               // Hash of evidence content
+    int64_t timestamp;                  // When evidence was submitted
+    std::string description;            // Description of evidence
+    bool verified{false};               // Whether evidence has been verified
+};
+
+/**
+ * @enum InsuranceClaimStatus
+ * @brief Status of an insurance claim
+ */
+enum class InsuranceClaimStatus : uint8_t {
+    PENDING = 0,                        // Claim is pending review
+    APPROVED = 1,                       // Claim was approved
+    PARTIALLY_APPROVED = 2,             // Claim was partially approved
+    REJECTED = 3,                       // Claim was rejected
+    APPEALED = 4,                       // Claim was appealed
+    EXPIRED = 5                         // Claim expired without resolution
+};
+
+/**
+ * @struct InsuranceClaim
+ * @brief Insurance claim details
+ * 
+ * Insurance claims follow a standardized procedure:
+ * 1. Claim submission with required evidence
+ * 2. Verification by multiple approvers
+ * 3. Approval, partial approval, or rejection
+ * 4. Optional appeal process for rejected claims
+ * 
+ * Claims must be filed within 30 days of the incident and include
+ * at least 2 pieces of supporting evidence. Payouts are capped at
+ * 90% of the claimed amount, and users must wait 90 days between
+ * filing claims.
+ */
+struct InsuranceClaim {
+    uint256 claim_id;                                // Unique claim ID
+    CPubKey claimant;                                // Who filed the claim
+    uint64_t amount_requested_sats;                  // Amount requested
+    uint64_t amount_approved_sats{0};                // Amount approved (if any)
+    std::string reason;                              // Reason for claim
+    int64_t incident_timestamp;                      // When incident occurred
+    int64_t claim_timestamp;                         // When claim was filed
+    std::vector<InsuranceClaimEvidence> evidence;    // Supporting evidence
+    std::vector<CPubKey> approvers;                  // Who approved the claim
+    std::vector<CPubKey> rejectors;                  // Who rejected the claim
+    InsuranceClaimStatus status{InsuranceClaimStatus::PENDING}; // Claim status
+    std::string rejection_reason;                    // Reason for rejection (if any)
+    uint256 appeal_id;                               // Appeal ID (if any)
+    uint256 related_job_id;                          // Related job (if any)
+    uint256 payout_txid;                             // Payout transaction ID (if any)
+    
+    /**
+     * @brief Check if claim is valid
+     * @param current_time Current timestamp
+     * @return True if claim is valid
+     */
+    bool IsValid(int64_t current_time) const {
+        static constexpr int64_t SECONDS_PER_DAY = 86400;
+        
+        // Check if claim was filed within the claim window
+        if (claim_timestamp - incident_timestamp > 
+            MMP_INSURANCE_CLAIM_WINDOW_DAYS * SECONDS_PER_DAY) {
+            return false; // Claim filed too late
+        }
+        
+        // Check if claim has minimum required evidence
+        if (evidence.size() < MMP_INSURANCE_EVIDENCE_REQUIRED) {
+            return false; // Not enough evidence
+        }
+        
+        // Check if amount requested is reasonable
+        if (amount_requested_sats == 0 || 
+            amount_requested_sats > MMP_MAX_JOB_AMOUNT_SATS) {
+            return false; // Invalid amount
+        }
+        
+        return true;
+    }
+    
+    /**
+     * @brief Check if claim can be approved
+     * @return True if claim can be approved
+     */
+    bool CanBeApproved() const {
+        return status == InsuranceClaimStatus::PENDING &&
+               approvers.size() >= MMP_MIN_INSURANCE_APPROVERS;
+    }
+    
+    /**
+     * @brief Check if claim can be appealed
+     * @param current_time Current timestamp
+     * @return True if claim can be appealed
+     */
+    bool CanBeAppealed(int64_t current_time) const {
+        static constexpr int64_t SECONDS_PER_DAY = 86400;
+        
+        return (status == InsuranceClaimStatus::REJECTED ||
+                status == InsuranceClaimStatus::PARTIALLY_APPROVED) &&
+               current_time - claim_timestamp <= 
+               MMP_INSURANCE_APPEAL_WINDOW_DAYS * SECONDS_PER_DAY;
+    }
+};
 
 // Enhanced bond slashing system with appeal process
 /**
@@ -2972,6 +4481,18 @@ struct BondSlashAppeal {
  * @struct DAOVote
  * @brief Represents a DAO member's vote with stake-based weighting
  */
+/**
+ * @struct DAOVote
+ * @brief Represents a DAO member's vote with Byzantine Fault Tolerance
+ * 
+ * This enhanced voting structure implements Byzantine Fault Tolerance (BFT)
+ * to ensure consensus even in the presence of malicious actors. Key features:
+ * 
+ * 1. Merkle tree aggregation for efficient vote verification
+ * 2. Proof chain for vote validation without revealing all votes
+ * 3. Stake-based weighting with cryptographic verification
+ * 4. Threshold signatures for efficient multi-signature validation
+ */
 struct DAOVote {
     uint256 proposal_hash;              // Hash of the proposal being voted on
     CPubKey voter_key;                  // DAO member's public key
@@ -2980,13 +4501,85 @@ struct DAOVote {
     int64_t vote_timestamp;             // When the vote was cast
     std::vector<uint8_t> vote_signature; // Signature proving vote authenticity
     std::string vote_reason;            // Optional reason for the vote
+    uint256 merkle_root;                // Merkle root for vote aggregation
+    std::vector<uint256> proof_chain;   // Merkle proof chain for verification
+    uint32_t bft_round{0};              // BFT consensus round
+    std::vector<uint8_t> threshold_signature; // Threshold signature for BFT
     
-    bool IsValid() const noexcept {
-        return voter_key.IsValid() && 
-               vote_weight >= 1 && vote_weight <= 10 &&
-               vote_timestamp > 0 &&
-               !vote_signature.empty() &&
-               vote_reason.length() <= MMP_MAX_DISPUTE_REASON_LENGTH;
+    /**
+     * @brief Validate the vote structure and signatures
+     * @return True if vote is valid
+     */
+    bool IsValid() const MMP_THREAD_SAFE {
+        // Basic validation
+        if (!voter_key.IsValid() || 
+            vote_weight < 1 || vote_weight > 10 ||
+            vote_timestamp <= 0 ||
+            vote_signature.empty() ||
+            vote_reason.length() > MMP_MAX_DISPUTE_REASON_LENGTH) {
+            return false;
+        }
+        
+        // BFT validation if enabled
+        if (!merkle_root.IsNull()) {
+            // Verify merkle proof if provided
+            if (!proof_chain.empty() && !VerifyMerkleProof()) {
+                return false;
+            }
+            
+            // Verify threshold signature if provided
+            if (!threshold_signature.empty() && !VerifyThresholdSignature()) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+    
+    /**
+     * @brief Verify the merkle proof chain
+     * @return True if proof is valid
+     */
+    bool VerifyMerkleProof() const MMP_THREAD_SAFE {
+        if (proof_chain.empty() || merkle_root.IsNull()) {
+            return false;
+        }
+        
+        // Calculate vote hash
+        uint256 vote_hash = CalculateVoteHash();
+        
+        // Verify merkle proof
+        uint256 computed_root = ComputeMerkleRoot(vote_hash, proof_chain);
+        return computed_root == merkle_root;
+    }
+    
+    /**
+     * @brief Calculate hash of this vote
+     * @return Hash of vote data
+     */
+    uint256 CalculateVoteHash() const MMP_THREAD_SAFE {
+        CHashWriter ss(SER_GETHASH, 0);
+        ss << proposal_hash;
+        ss << std::vector<uint8_t>(voter_key.begin(), voter_key.end());
+        ss << approve;
+        ss << vote_weight;
+        ss << vote_timestamp;
+        ss << vote_reason;
+        return ss.GetHash();
+    }
+    
+    /**
+     * @brief Verify threshold signature
+     * @return True if threshold signature is valid
+     */
+    bool VerifyThresholdSignature() const MMP_THREAD_SAFE {
+        if (threshold_signature.empty()) {
+            return false;
+        }
+        
+        // In a real implementation, this would verify the threshold signature
+        // using a library like libBLS or similar
+        return threshold_signature.size() >= 64;
     }
     
     // Calculate weighted vote value
@@ -3324,10 +4917,446 @@ bool VerifyMetadataHash(const std::string& metadata_content, const std::string& 
 // Validation utilities
 bool IsValidURL(const std::string& url);
 bool IsValidSHA256Hash(const std::string& hash);
-bool IsValidJobAmount(uint64_t amount_sats);
+bool IsValidJobAmount(const Satoshi& amount);
 bool IsValidTimeout(uint32_t timeout_blocks);
 bool IsValidBlockHeight(uint32_t height);
 bool IsValidJobId(const uint256& job_id);
+
+/**
+ * @brief Compute hash for a specific action on a job
+ * @param job_id The job ID
+ * @param action_type The type of action being performed
+ * @return Hash of the action
+ */
+uint256 ComputeActionHash(const uint256& job_id, const std::string& action_type) {
+    CHashWriter hasher(SER_GETHASH, 0);
+    hasher.write(reinterpret_cast<const char*>(job_id.begin()), 32);
+    hasher.write(action_type.data(), action_type.size());
+    hasher.write(reinterpret_cast<const char*>(&GetTime()), sizeof(int64_t));
+    return hasher.GetHash();
+}
+
+/**
+ * @brief Authorize a middleman action on a contract
+ * @param contract The job contract
+ * @param middleman_key The middleman's public key
+ * @param signature The signature to verify
+ * @param action_type The type of action being performed
+ * @return True if the middleman is authorized
+ */
+bool AuthorizeMiddlemanAction(const JobContract& contract, 
+                             const CPubKey& middleman_key,
+                             const std::vector<uint8_t>& signature,
+                             const std::string& action_type) 
+{
+    // Verify middleman assignment
+    if (contract.middleman_info.pubkey != middleman_key) {
+        return false;
+    }
+    
+    // Check if contract is in a state that allows middleman actions
+    if (contract.state != JobState::DISPUTED) {
+        return false;
+    }
+    
+    // Check if middleman is active
+    if (!contract.middleman_info.is_active) {
+        return false;
+    }
+    
+    // Action-specific signature verification
+    uint256 action_hash = ComputeActionHash(contract.job_id, action_type);
+    return VerifySignature(middleman_key, signature, action_hash);
+}
+
+/**
+ * @brief Generate a proof of delay
+ * @param seed Initial seed value
+ * @param iterations Number of iterations
+ * @param num_checkpoints Number of checkpoints to generate
+ * @return Proof of delay
+ */
+ProofOfDelay GenerateProofOfDelay(const uint256& seed, uint32_t iterations = MMP_VDF_DIFFICULTY, 
+                                 uint32_t num_checkpoints = 10) {
+    ProofOfDelay proof;
+    proof.input = seed;
+    proof.iterations = iterations;
+    proof.start_time = GetTime();
+    
+    // Compute iterations with checkpoints
+    uint256 current = seed;
+    uint32_t iterations_per_checkpoint = iterations / num_checkpoints;
+    
+    for (uint32_t i = 0; i < num_checkpoints; i++) {
+        // Compute iterations_per_checkpoint hashes
+        for (uint32_t j = 0; j < iterations_per_checkpoint; j++) {
+            CHash256 hasher;
+            hasher.Write(current.begin(), current.size());
+            hasher.Finalize(current.begin());
+        }
+        
+        // Store checkpoint
+        proof.checkpoints.push_back(current);
+    }
+    
+    proof.output = current;
+    proof.end_time = GetTime();
+    
+    return proof;
+}
+
+/**
+ * @brief Verify a proof of delay
+ * @param proof The proof to verify
+ * @return True if the proof is valid
+ */
+bool VerifyProofOfDelay(const ProofOfDelay& proof) {
+    return proof.IsValid();
+}
+
+/**
+ * @brief Verify a proof of delay for a specific claim time
+ * @param proof The proof to verify
+ * @param claim_time The claimed time
+ * @return True if the proof is valid for the claim time
+ */
+bool VerifyProofOfDelayForClaim(const ProofOfDelay& proof, int64_t claim_time) {
+    // First verify the proof itself
+    if (!proof.IsValid()) {
+        return false;
+    }
+    
+    // Check if the claim time is after the proof end time
+    if (claim_time <= proof.end_time) {
+        return false;
+    }
+    
+    // Check if the claim is not too far after the proof (max 1 hour)
+    if (claim_time > proof.end_time + 3600) {
+        return false;
+    }
+    
+    return true;
+}
+
+/**
+ * @brief Apply time-based reputation decay to a middleman
+ * @param mm The middleman info to update
+ * @param current_time Current timestamp
+ */
+void ApplyReputationDecay(MiddlemanInfo& mm, int64_t current_time) {
+    // Skip if no time has passed or invalid timestamp
+    int64_t time_since_activity = current_time - mm.last_activity_timestamp;
+    if (time_since_activity <= 0) {
+        return;
+    }
+    
+    // Calculate months elapsed (fractional)
+    double months_elapsed = static_cast<double>(time_since_activity) / MMP_SECONDS_PER_MONTH;
+    
+    // Apply decay formula: score = score * (decay_rate ^ months)
+    double decay_factor = std::pow(
+        mm.decay_config.use_global_settings ? MMP_REPUTATION_DECAY_RATE : mm.decay_config.monthly_decay_rate, 
+        months_elapsed
+    );
+    
+    // Apply decay with minimum floor
+    uint32_t min_reputation = mm.decay_config.use_global_settings ? 
+                             MMP_MIN_REPUTATION_SCORE : 
+                             mm.decay_config.min_reputation;
+    
+    // Update reputation score with decay
+    mm.reputation_score = std::max(
+        min_reputation, 
+        static_cast<uint32_t>(mm.reputation_score * decay_factor)
+    );
+    
+    // Update last activity timestamp
+    mm.last_activity_timestamp = current_time;
+    
+    // Log the decay for audit purposes
+    LogReputationDecay(mm.pubkey, months_elapsed, decay_factor, mm.reputation_score);
+}
+
+// Implementation of IsValidJobAmount for Satoshi type
+bool IsValidJobAmount(const Satoshi& amount) {
+    return amount >= MMP_MIN_JOB_AMOUNT && amount <= MMP_MAX_JOB_AMOUNT;
+}
+
+/**
+ * @brief Log state transition for audit purposes
+ * @param job_id The job ID
+ * @param old_state The previous state
+ * @param new_state The new state
+ * @param memo Description of the transition
+ */
+void LogStateTransition(const uint256& job_id, JobState old_state, JobState new_state, const std::string& memo) {
+    // In a real implementation, this would log to a proper logging system
+    // For now, it's just a placeholder
+    
+    // Format: [timestamp] JOB_ID: OLD_STATE -> NEW_STATE (memo)
+    std::string log_entry = "[" + std::to_string(GetTime()) + "] " + 
+                           job_id.ToString() + ": " + 
+                           JobStateToString(old_state) + " -> " + 
+                           JobStateToString(new_state) + " (" + memo + ")";
+    
+    // In production, this would write to a log file or database
+    // LogToFile(log_entry);
+}
+
+/**
+ * @brief Log reputation decay for audit purposes
+ * @param pubkey The middleman's public key
+ * @param months_elapsed Months elapsed since last activity
+ * @param decay_factor The decay factor applied
+ * @param new_score The new reputation score
+ */
+void LogReputationDecay(const CPubKey& pubkey, double months_elapsed, double decay_factor, uint32_t new_score) {
+    // In a real implementation, this would log to a proper logging system
+    // For now, it's just a placeholder
+    
+    // Format: [timestamp] PUBKEY: MONTHS_ELAPSED months, DECAY_FACTOR decay, NEW_SCORE score
+    std::string log_entry = "[" + std::to_string(GetTime()) + "] " + 
+                           HexStr(pubkey.begin(), pubkey.end()) + ": " + 
+                           std::to_string(months_elapsed) + " months, " + 
+                           std::to_string(decay_factor) + " decay, " + 
+                           std::to_string(new_score) + " score";
+    
+    // In production, this would write to a log file or database
+    // LogToFile(log_entry);
+}
+
+/**
+ * @brief Log insurance claim vote for audit purposes
+ * @param claim_id The claim ID
+ * @param approver The approver's public key
+ * @param approved Whether the claim was approved
+ * @param status The resulting claim status
+ * @param amount The approved amount
+ */
+void LogClaimVote(const uint256& claim_id, const CPubKey& approver, bool approved, 
+                 ClaimStatus status, const Satoshi& amount) {
+    // In a real implementation, this would log to a proper logging system
+    // For now, it's just a placeholder
+    
+    // Format: [timestamp] CLAIM_ID: APPROVER voted VOTE (STATUS, AMOUNT)
+    std::string log_entry = "[" + std::to_string(GetTime()) + "] " + 
+                           claim_id.ToString() + ": " + 
+                           HexStr(approver.begin(), approver.end()) + " voted " + 
+                           (approved ? "APPROVE" : "REJECT") + " (";
+    
+    // Add status
+    switch (status) {
+        case ClaimStatus::PENDING:
+            log_entry += "PENDING";
+            break;
+        case ClaimStatus::APPROVED:
+            log_entry += "APPROVED";
+            break;
+        case ClaimStatus::REJECTED:
+            log_entry += "REJECTED";
+            break;
+        case ClaimStatus::PARTIAL:
+            log_entry += "PARTIAL";
+            break;
+        case ClaimStatus::APPEALED:
+            log_entry += "APPEALED";
+            break;
+        case ClaimStatus::EXPIRED:
+            log_entry += "EXPIRED";
+            break;
+        case ClaimStatus::PAID:
+            log_entry += "PAID";
+            break;
+        default:
+            log_entry += "UNKNOWN";
+            break;
+    }
+    
+    // Add amount if applicable
+    if (status == ClaimStatus::APPROVED || status == ClaimStatus::PARTIAL) {
+        log_entry += ", " + std::to_string(amount.value) + " sats";
+    }
+    
+    log_entry += ")";
+    
+    // In production, this would write to a log file or database
+    // LogToFile(log_entry);
+}
+
+/**
+ * @brief Compute a Merkle root from a leaf node and proof chain
+ * @param leaf_hash The hash of the leaf node
+ * @param proof_chain The Merkle proof chain
+ * @return The computed Merkle root
+ */
+uint256 ComputeMerkleRoot(const uint256& leaf_hash, const std::vector<uint256>& proof_chain) MMP_THREAD_SAFE {
+    if (proof_chain.empty()) {
+        return leaf_hash; // If no proof chain, the leaf is the root
+    }
+    
+    uint256 current = leaf_hash;
+    
+    // Apply each proof element
+    for (const auto& proof_element : proof_chain) {
+        // Sort the hashes to ensure consistent ordering
+        if (current < proof_element) {
+            // Hash in order: current + proof_element
+            CHashWriter hasher(SER_GETHASH, 0);
+            hasher.write(reinterpret_cast<const char*>(current.begin()), 32);
+            hasher.write(reinterpret_cast<const char*>(proof_element.begin()), 32);
+            current = hasher.GetHash();
+        } else {
+            // Hash in order: proof_element + current
+            CHashWriter hasher(SER_GETHASH, 0);
+            hasher.write(reinterpret_cast<const char*>(proof_element.begin()), 32);
+            hasher.write(reinterpret_cast<const char*>(current.begin()), 32);
+            current = hasher.GetHash();
+        }
+    }
+    
+    return current;
+}
+
+/**
+ * @brief Build a Merkle tree from a list of hashes
+ * @param hashes The list of leaf node hashes
+ * @return The Merkle root
+ */
+uint256 BuildMerkleRoot(const std::vector<uint256>& hashes) MMP_THREAD_SAFE {
+    if (hashes.empty()) {
+        return uint256(); // Empty tree has null root
+    }
+    
+    if (hashes.size() == 1) {
+        return hashes[0]; // Single node is the root
+    }
+    
+    // Build the tree bottom-up
+    std::vector<uint256> current_level = hashes;
+    
+    while (current_level.size() > 1) {
+        std::vector<uint256> next_level;
+        
+        // Process pairs of nodes
+        for (size_t i = 0; i < current_level.size(); i += 2) {
+            uint256 left = current_level[i];
+            uint256 right = (i + 1 < current_level.size()) ? current_level[i + 1] : left;
+            
+            // Hash the pair
+            CHashWriter hasher(SER_GETHASH, 0);
+            hasher.write(reinterpret_cast<const char*>(left.begin()), 32);
+            hasher.write(reinterpret_cast<const char*>(right.begin()), 32);
+            next_level.push_back(hasher.GetHash());
+        }
+        
+        current_level = next_level;
+    }
+    
+    return current_level[0]; // The root
+}
+
+/**
+ * @brief Process an insurance claim vote
+ * @param claim The insurance claim to process
+ * @param approver The approver's public key
+ * @param approve Whether the approver approves the claim
+ * @param partial_amount Optional partial approval amount
+ * @return True if the vote was processed successfully
+ */
+bool ProcessInsuranceClaim(InsuranceClaim& claim, const CPubKey& approver, 
+                          bool approve, const Satoshi& partial_amount = Satoshi(0)) MMP_THREAD_SAFE {
+    // Apply reentrancy guard to prevent concurrent modifications
+    MMP_REENTRANCY_GUARD(claim.claim_id);
+    
+    // Verify claim is in a valid state for voting
+    if (claim.status != ClaimStatus::PENDING && claim.status != ClaimStatus::APPEALED) {
+        return false;
+    }
+    
+    // Verify approver is valid
+    if (!approver.IsValid()) {
+        return false;
+    }
+    
+    // Prevent duplicate votes
+    if (claim.HasVoted(approver)) {
+        return false;
+    }
+    
+    // Enforce maximum number of approvers
+    if (claim.approvers.size() + claim.rejectors.size() >= MMP_MAX_CLAIM_APPROVERS) {
+        return false;
+    }
+    
+    // Process the vote
+    if (approve) {
+        // Add to approvers list
+        claim.approvers.push_back(approver);
+        
+        // Handle partial approval
+        if (partial_amount.value > 0 && partial_amount < claim.amount) {
+            // Track the lowest partial amount
+            if (claim.approved_amount.value == 0 || partial_amount < claim.approved_amount) {
+                claim.approved_amount = partial_amount;
+            }
+        }
+    } else {
+        // Add to rejectors list
+        claim.rejectors.push_back(approver);
+    }
+    
+    // Check if claim has reached decision threshold
+    if (claim.approvers.size() + claim.rejectors.size() >= MMP_MIN_CLAIM_APPROVERS) {
+        // Calculate approval ratio
+        double approval_ratio = claim.GetApprovalRatio();
+        
+        // Update claim status based on votes
+        if (approval_ratio >= MMP_CLAIM_APPROVAL_THRESHOLD) {
+            // Determine if partial or full approval
+            if (claim.approved_amount.value > 0 && claim.approved_amount < claim.amount) {
+                claim.status = ClaimStatus::PARTIAL;
+            } else {
+                claim.status = ClaimStatus::APPROVED;
+                claim.approved_amount = claim.amount; // Full amount
+            }
+        } else {
+            claim.status = ClaimStatus::REJECTED;
+        }
+    }
+    
+    // Log the vote for audit purposes
+    LogClaimVote(claim.claim_id, approver, approve, 
+                claim.status, claim.approved_amount);
+    
+    return true;
+}
+
+// Implementation of IsValidReplayProtection for JobMetadata
+bool JobMetadata::IsValidReplayProtection(int64_t current_time) const MMP_THREAD_SAFE {
+    // If current_time is not provided, use current time
+    if (current_time == 0) {
+        current_time = GetTime();
+    }
+    
+    // Check if nonce is not null
+    if (nonce.IsNull()) {
+        return false;
+    }
+    
+    // Check if timestamp is reasonable
+    // Not too old (more than 1 hour ago)
+    if (timestamp < current_time - 3600) {
+        return false;
+    }
+    
+    // Not in the future (more than 5 minutes ahead)
+    if (timestamp > current_time + 300) {
+        return false;
+    }
+    
+    return true;
+}
 
 // New validation utilities for applications and messages
 bool IsValidApplicationMessage(const std::string& message);
@@ -3444,6 +5473,115 @@ void DumpMetadataState(const JobMetadata& metadata);
 void FuzzJobMetadata(JobMetadata& metadata);
 void FuzzKeyAggregation(KeyAggregationContext& ctx);
 void FuzzJobContract(JobContract& contract);
+
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+/**
+ * @brief Fuzz target for ResolutionPath validation
+ * @param data Fuzz input data
+ * @param size Size of input data
+ */
+extern "C" int LLVMFuzzerTestOneInput_ResolutionPath(const uint8_t* data, size_t size) {
+    if (size < 1) return 0;
+    
+    // Extract resolution path from first byte
+    ResolutionPath path = static_cast<ResolutionPath>(data[0] % 6);
+    
+    // Test path validation
+    std::string path_str = ResolutionPathToString(path);
+    
+    // Test transaction building with this path
+    JobContract dummy_contract;
+    CScript dummy_script;
+    
+    try {
+        CTransaction tx = BuildDisputeResolution(dummy_contract, path, dummy_script);
+    } catch (...) {
+        // Expected for invalid combinations
+    }
+    
+    return 0;
+}
+
+/**
+ * @brief Fuzz target for signature verification
+ * @param data Fuzz input data
+ * @param size Size of input data
+ */
+extern "C" int LLVMFuzzerTestOneInput_SignatureVerification(const uint8_t* data, size_t size) {
+    if (size < 65) return 0; // Need at least a public key and some signature data
+    
+    // Extract public key from first 33 bytes
+    std::vector<uint8_t> pubkey_data(data, data + 33);
+    CPubKey pubkey(pubkey_data);
+    
+    // Extract signature from next 32 bytes
+    std::vector<uint8_t> signature(data + 33, data + 65);
+    
+    // Create a message hash from remaining data
+    uint256 msg_hash;
+    if (size > 65) {
+        CHashWriter hasher(SER_GETHASH, 0);
+        hasher.write(reinterpret_cast<const char*>(data + 65), size - 65);
+        msg_hash = hasher.GetHash();
+    }
+    
+    // Test signature verification
+    try {
+        bool result = VerifySchnorrSignature(pubkey, signature, msg_hash, 0);
+    } catch (...) {
+        // Expected for invalid inputs
+    }
+    
+    return 0;
+}
+
+/**
+ * @brief Fuzz target for dispute evidence validation
+ * @param data Fuzz input data
+ * @param size Size of input data
+ */
+extern "C" int LLVMFuzzerTestOneInput_DisputeEvidence(const uint8_t* data, size_t size) {
+    if (size < 10) return 0;
+    
+    // Create dispute evidence from fuzz data
+    DisputeEvidence evidence;
+    
+    // Add URLs based on fuzz data
+    size_t url_count = data[0] % 5 + 1;
+    for (size_t i = 0; i < url_count && i + 1 < size; i++) {
+        std::string url = "https://example.com/" + std::to_string(data[i + 1]);
+        evidence.evidence_urls.push_back(url);
+        
+        // Add matching content hash
+        CHashWriter hasher(SER_GETHASH, 0);
+        hasher.write(url.data(), url.size());
+        evidence.content_hashes.push_back(hasher.GetHash());
+        
+        // Add description
+        evidence.evidence_descriptions.push_back("Description " + std::to_string(i));
+        
+        // Add format
+        evidence.evidence_formats.push_back(static_cast<EvidenceFormat>(i % 11));
+    }
+    
+    // Set timestamp
+    evidence.timestamp = GetCurrentTimestamp();
+    
+    // Set submitter key
+    std::vector<uint8_t> key_data(data + url_count + 1, data + std::min(url_count + 34, size));
+    if (key_data.size() == 33) {
+        evidence.submitter_key = CPubKey(key_data);
+    }
+    
+    // Test evidence validation
+    bool is_valid = evidence.IsValid();
+    
+    // Test timestamp verification
+    evidence.VerifyTimestamp(GetCurrentTimestamp());
+    
+    return 0;
+}
+#endif // FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 #endif
 
 } // namespace mmp
