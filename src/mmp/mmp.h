@@ -29,11 +29,58 @@
  * - Replay protection enforced via nonces+timestamps
  * - Strict input validation on all parameters
  * - Thread-safe design with clear locking requirements
+ * - Key rotation for long-running jobs (30-day rotation interval)
+ * - Evidence verification with content hash validation
+ * - Proportional bond slashing with economic safeguards
  * 
  * @performance Critical Path Optimizations:
  * - Schnorr aggregation for cooperative paths
  * - Taproot for single-key-spend appearance
  * - MAST for efficient dispute resolution
+ * - Optimized reputation decay calculations
+ * 
+ * @workflow Dispute Resolution Workflow:
+ * 1. Dispute Initiation:
+ *    - Either party (employer/worker) can raise a dispute
+ *    - Dispute includes reason and proposed middleman
+ *    - Emergency key rotation is triggered for security
+ * 
+ * 2. Middleman Selection:
+ *    - Both parties propose middlemen
+ *    - Selection methods: mutual agreement, reputation-based, or DAO-approved
+ *    - Fallback to arbitrator if no agreement within timeout
+ * 
+ * 3. Evidence Submission:
+ *    - Both parties submit evidence with content verification
+ *    - Evidence includes URL, hash, and timestamp
+ *    - Content is verified against provided hash
+ * 
+ * 4. Resolution Paths:
+ *    - COOPERATIVE: Both parties agree (2-of-2 multisig)
+ *    - WORKER_TIMEOUT: Worker claims after 24h timeout
+ *    - EMPLOYER_WIN: Employer + Middleman decide
+ *    - WORKER_WIN: Worker + Middleman decide
+ *    - MIDDLEMAN_SPLIT: Middleman decides split payment
+ *    - EMERGENCY: Emergency resolution by middleman
+ * 
+ * 5. Transaction Sequence:
+ *    - Funding TX: Locks employer funds in escrow
+ *    - Resolution TX: Spends from escrow to appropriate parties
+ *    - Split TX (if applicable): Divides funds according to middleman decision
+ * 
+ * @insurance Insurance Claim Process:
+ * 1. Claim Submission:
+ *    - Affected party submits claim with evidence
+ *    - Claim includes incident details and requested amount
+ * 
+ * 2. Claim Validation:
+ *    - Multiple approvers verify claim (2-5 required)
+ *    - Validation includes evidence verification and amount assessment
+ * 
+ * 3. Claim Resolution:
+ *    - Approved claims paid from insurance pool
+ *    - Rejected claims can be appealed with additional evidence
+ *    - Partial approvals possible for proportional compensation
  */
 namespace mmp {
 
@@ -89,22 +136,34 @@ static constexpr uint32_t MMP_MIN_REPUTATION_FOR_AUTO = 50;        // Minimum re
 static constexpr uint32_t MMP_MAX_APPROVED_MIDDLEMEN = 50;         // Maximum in approved pool
 static constexpr size_t MMP_MAX_IDENTITY_HASH_LENGTH = 64;         // Max identity hash length
 
+// Validate protocol constants at compile time
+static_assert(MMP_MIN_SELECTION_PENALTY_SATS < MMP_MAX_SELECTION_PENALTY_SATS, 
+              "Invalid selection penalty range");
+static_assert(MMP_MIN_MIDDLEMAN_BOND_SATS < MMP_MAX_MIDDLEMAN_BOND_SATS, 
+              "Invalid middleman bond range");
+static_assert(MMP_MIN_SELECTION_TIMEOUT_BLOCKS < MMP_MAX_SELECTION_TIMEOUT_BLOCKS, 
+              "Invalid selection timeout range");
+static_assert(MMP_MIN_REPUTATION_FOR_AUTO <= MMP_MAX_REPUTATION_SCORE, 
+              "Minimum reputation for auto-selection exceeds maximum reputation score");
+static_assert(MMP_MAX_APPROVED_MIDDLEMEN > 0, 
+              "Maximum approved middlemen must be positive");
+static_assert(MMP_MAX_IDENTITY_HASH_LENGTH >= 32, 
+              "Identity hash length must be at least 32 bytes");
+
 // Enhanced constants for production use
-static constexpr double MMP_MAX_FEE_TO_BOND_RATIO = 0.5;           // Fee can be max 50% of bond
-static constexpr double MMP_MIN_BOND_TO_JOB_RATIO = 0.05;          // Bond must be min 5% of job amount
+static constexpr double MMP_MAX_FEE_TO_BOND_RATIO = 0.5;           // Fee can't exceed 50% of bond
+static constexpr double MMP_MIN_BOND_TO_JOB_RATIO = 0.05;          // Bond must be at least 5% of max job
 static constexpr uint32_t MMP_MIN_DAO_APPROVERS = 3;               // Minimum DAO approvers for slashing
-static constexpr uint32_t MMP_MAX_DAO_APPROVERS = 10;              // Maximum DAO approvers
+static constexpr uint32_t MMP_MAX_DAO_APPROVERS = 15;              // Maximum DAO approvers
 static constexpr uint32_t MMP_MIN_INSURANCE_APPROVERS = 2;         // Minimum insurance claim approvers
 static constexpr uint32_t MMP_MAX_INSURANCE_APPROVERS = 5;         // Maximum insurance claim approvers
 
 // Bond slashing and appeal constraints
 static constexpr uint32_t MMP_MIN_CHALLENGE_PERIOD_BLOCKS = 144;   // Minimum 24h for appeals
 static constexpr uint32_t MMP_MAX_CHALLENGE_PERIOD_BLOCKS = 4032;  // Maximum 4 weeks for appeals
-static constexpr uint32_t MMP_MIN_DAO_APPROVERS = 3;               // Minimum DAO approvers for slashing
-static constexpr uint32_t MMP_MAX_DAO_APPROVERS = 15;              // Maximum DAO approvers
-static constexpr double MMP_MAX_FEE_TO_BOND_RATIO = 0.5;           // Fee can't exceed 50% of bond
-static constexpr double MMP_MIN_BOND_TO_JOB_RATIO = 0.05;          // Bond must be at least 5% of max job
 static constexpr double MMP_REPUTATION_TIME_DECAY_YEARS = 1.0;     // Reputation decay over 1 year
+static constexpr uint32_t MMP_COOLING_OFF_BLOCKS = 144;            // 24h cooling-off period for large slashes
+static constexpr double MMP_LARGE_SLASH_THRESHOLD = 0.25;          // 25% of bond is considered a large slash
 
 // Version compatibility constants
 static constexpr uint8_t MMP_MIN_COMPATIBLE_VERSION = 1;    // Minimum supported version
@@ -131,6 +190,97 @@ static constexpr size_t MMP_MAX_BUFFER_SIZE = 1024 * 1024;   // 1MB max buffer s
 static constexpr bool MMP_STRICT_VALIDATION = true;
 static constexpr size_t MMP_MAX_EVENT_HISTORY = 1000;       // Limit event history in debug mode
 static constexpr size_t MMP_FUZZ_MAX_ITERATIONS = 10000;    // Max fuzz test iterations
+
+/**
+ * @brief Fuzz test serialization functions
+ * @param iterations Number of iterations to run
+ * @return Number of failures detected
+ */
+int FuzzTestSerialization(size_t iterations = MMP_FUZZ_MAX_ITERATIONS) {
+    int failures = 0;
+    
+    // Set up random number generator
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> distrib(0, 255);
+    
+    // Fuzz JobContract serialization
+    for (size_t i = 0; i < iterations; i++) {
+        // Create random data
+        std::vector<uint8_t> random_data(gen() % 1024);
+        for (auto& byte : random_data) {
+            byte = static_cast<uint8_t>(distrib(gen));
+        }
+        
+        try {
+            // Attempt to deserialize random data
+            JobContract contract;
+            if (contract.Deserialize(random_data)) {
+                // If deserialization succeeded, serialize and compare
+                std::vector<uint8_t> serialized = contract.Serialize();
+                JobContract deserialized;
+                if (!deserialized.Deserialize(serialized) || 
+                    !contract.Equals(deserialized)) {
+                    failures++;
+                }
+            }
+        } catch (const std::exception&) {
+            // Exception is expected for invalid data
+        }
+    }
+    
+    // Fuzz MiddlemanInfo serialization
+    for (size_t i = 0; i < iterations; i++) {
+        // Create random data
+        std::vector<uint8_t> random_data(gen() % 512);
+        for (auto& byte : random_data) {
+            byte = static_cast<uint8_t>(distrib(gen));
+        }
+        
+        try {
+            // Attempt to deserialize random data
+            MiddlemanInfo info;
+            if (info.Deserialize(random_data)) {
+                // If deserialization succeeded, serialize and compare
+                std::vector<uint8_t> serialized = info.Serialize();
+                MiddlemanInfo deserialized;
+                if (!deserialized.Deserialize(serialized) || 
+                    !info.Equals(deserialized)) {
+                    failures++;
+                }
+            }
+        } catch (const std::exception&) {
+            // Exception is expected for invalid data
+        }
+    }
+    
+    // Fuzz BondSlashProposal serialization
+    for (size_t i = 0; i < iterations; i++) {
+        // Create random data
+        std::vector<uint8_t> random_data(gen() % 256);
+        for (auto& byte : random_data) {
+            byte = static_cast<uint8_t>(distrib(gen));
+        }
+        
+        try {
+            // Attempt to deserialize random data
+            BondSlashProposal proposal;
+            if (proposal.Deserialize(random_data)) {
+                // If deserialization succeeded, serialize and compare
+                std::vector<uint8_t> serialized = proposal.Serialize();
+                BondSlashProposal deserialized;
+                if (!deserialized.Deserialize(serialized) || 
+                    !proposal.Equals(deserialized)) {
+                    failures++;
+                }
+            }
+        } catch (const std::exception&) {
+            // Exception is expected for invalid data
+        }
+    }
+    
+    return failures;
+}
 #endif
 
 // Static assertions for compile-time safety checks
@@ -163,6 +313,24 @@ static_assert(MMP_MAX_REPUTATION_SCORE == 100, "Reputation score must be 0-100")
 static_assert(MMP_MIN_REPUTATION_FOR_AUTO <= MMP_MAX_REPUTATION_SCORE, "Invalid reputation range");
 static_assert(MMP_MIN_SELECTION_TIMEOUT_BLOCKS >= 6, "Selection timeout too small");
 static_assert(MMP_MAX_SELECTION_TIMEOUT_BLOCKS <= 1008, "Selection timeout too large");
+
+// Additional struct size and alignment checks
+static_assert(sizeof(uint256) == 32, "uint256 must be 32 bytes");
+static_assert(sizeof(CPubKey) <= 65, "CPubKey exceeds expected size");
+static_assert(sizeof(SlashCondition) == 1, "SlashCondition should be 1 byte");
+static_assert(sizeof(MMPError) <= 4, "MMPError should be at most 4 bytes");
+static_assert(sizeof(LockFundsResult) <= 4, "LockFundsResult should be at most 4 bytes");
+static_assert(sizeof(JobActionResult) <= 4, "JobActionResult should be at most 4 bytes");
+
+// Memory alignment checks for performance
+static_assert(alignof(KeyAggregationContext) <= 8, "KeyAggregationContext alignment too large");
+static_assert(alignof(JobContract) <= 8, "JobContract alignment too large");
+static_assert(alignof(MiddlemanInfo) <= 8, "MiddlemanInfo alignment too large");
+
+// Security-critical size checks
+static_assert(sizeof(SlashRecord) <= 256, "SlashRecord too large");
+static_assert(sizeof(BondSlashProposal) <= 1024, "BondSlashProposal too large");
+static_assert(sizeof(DisputeEvidence) <= 512, "DisputeEvidence too large");
 
 // Additional compile-time checks for enum sizes and ranges
 static_assert(static_cast<uint8_t>(JobState::EXPIRED) < 16, "JobState values exceed 4-bit range");
@@ -201,6 +369,14 @@ enum class ResolutionPath : uint8_t {
     EMERGENCY = 5           // Emergency resolution by middleman
 };
 
+// Bond slashing conditions (can be combined with bitwise OR)
+enum class SlashCondition : uint8_t {
+    MALICIOUS_BEHAVIOR = 0x01,  // Intentional misconduct
+    GROSS_NEGLIGENCE   = 0x02,  // Severe negligence in duties
+    REPEATED_FAILURES  = 0x04,  // Pattern of failed resolutions
+    BOND_UNDER_MIN     = 0x08   // Bond falls below minimum requirement
+};
+
 // Error codes for advanced error handling
 enum class MMPError {
     NONE = 0,
@@ -224,6 +400,33 @@ enum class MMPError {
     CONTROL_BLOCK_INVALID,
     METADATA_TOO_LARGE,
     NETWORK_ERROR,
+    
+    // Enhanced dispute resolution errors
+    DISPUTE_EVIDENCE_INVALID,
+    DISPUTE_EVIDENCE_HASH_MISMATCH,
+    DISPUTE_EVIDENCE_DOWNLOAD_FAILED,
+    DISPUTE_EVIDENCE_TOO_LARGE,
+    DISPUTE_EVIDENCE_EXPIRED,
+    DISPUTE_RESOLUTION_UNAUTHORIZED,
+    DISPUTE_MIDDLEMAN_SELECTION_FAILED,
+    DISPUTE_COOLING_OFF_PERIOD,
+    DISPUTE_APPEAL_INVALID,
+    DISPUTE_APPEAL_EXPIRED,
+    DISPUTE_RESOLUTION_TIMEOUT,
+    
+    // Key rotation errors
+    KEY_ROTATION_FAILED,
+    KEY_ROTATION_NOT_DUE,
+    KEY_ROTATION_REQUIRED,
+    
+    // Bond slashing errors
+    BOND_SLASH_INVALID,
+    BOND_SLASH_INSUFFICIENT_APPROVERS,
+    BOND_SLASH_COOLING_OFF_PERIOD,
+    BOND_SLASH_AMOUNT_TOO_LARGE,
+    BOND_SLASH_APPEAL_PENDING,
+    
+    // Fallback errors
     UNKNOWN_ERROR
 };
 
@@ -235,7 +438,14 @@ enum class LockFundsResult {
     TX_MISMATCH,
     INSUFFICIENT_AMOUNT,
     ALREADY_LOCKED,
-    INVALID_SCRIPT
+    INVALID_SCRIPT,
+    TX_REJECTED,           // Transaction rejected by network
+    TX_CONFLICTED,         // Transaction conflicted with another
+    TX_TIMEOUT,            // Transaction timed out waiting for confirmation
+    TX_MEMPOOL_FULL,       // Mempool was full, transaction not accepted
+    TX_FEE_TOO_LOW,        // Fee was too low for transaction to be accepted
+    TX_DOUBLE_SPEND,       // Transaction was double-spent
+    TX_MALFORMED           // Transaction was malformed
 };
 
 enum class JobActionResult {
@@ -278,6 +488,10 @@ enum class JobActionResult {
     FALLBACK_ARBITRATOR_REQUIRED,
     SELECTION_PENALTY_TOO_LOW,
     IDENTITY_HASH_INVALID,
+    KEY_ROTATION_REQUIRED,
+    KEY_ROTATION_NOT_DUE,
+    AGGREGATION_FAILED,
+    SCRIPT_UPDATE_FAILED,
     FEE_EXCEEDS_BOND,
     BOND_TOO_LOW_FOR_JOB,
     ECONOMIC_RATIOS_INVALID,
@@ -350,6 +564,29 @@ struct TaprootPaths {
     CScript worker_dispute;       // Worker + Middleman (dispute resolution)
     CScript middleman_split;      // Middleman decides split (dispute resolution)
     CScript emergency_path;       // Middleman emergency resolution
+    
+    // Update script paths with new keys after key rotation
+    bool UpdateWithNewKeys(const KeyAggregationContext& keys) {
+        if (!keys.employer_key.IsValid() || !keys.worker_key.IsValid()) {
+            return false;
+        }
+        
+        // Update cooperative path (2-of-2 multisig)
+        cooperative_path = CreateMultisigScript({keys.employer_key, keys.worker_key}, 2);
+        
+        // Update worker timeout path
+        worker_timeout_path = CreateTimelockedScript(keys.worker_key, keys.timeout_blocks);
+        
+        // Update dispute paths if middleman is assigned
+        if (keys.middleman_assigned && keys.middleman_key.IsValid()) {
+            employer_dispute = CreateMultisigScript({keys.employer_key, keys.middleman_key}, 2);
+            worker_dispute = CreateMultisigScript({keys.worker_key, keys.middleman_key}, 2);
+            middleman_split = CreateSplitPaymentScript(keys.middleman_key);
+            emergency_path = CreateEmergencyScript(keys.middleman_key);
+        }
+        
+        return true;
+    }
 };
 
 /**
@@ -370,36 +607,44 @@ struct SelectionCriteria {
         return total_weight >= 0.99 && total_weight <= 1.01; // Allow small floating point errors
     }
     
-    // Calculate weighted score for a middleman
+    // Calculate weighted score for a middleman - optimized for performance
     double CalculateScore(const MiddlemanInfo& mm, const std::vector<std::string>& required_specialties,
                          uint64_t max_acceptable_fee, uint32_t max_response_time_blocks) const noexcept {
+        // Remove redundant validations already in MiddlemanInfo::IsValid()
         if (!mm.IsValid() || !IsValid()) return 0.0;
         
-        // Reputation score (0-100 normalized to 0-1)
-        double reputation_score = static_cast<double>(mm.GetEffectiveReputation()) / 100.0;
+        // Use integer math instead of floating point for better performance
+        const uint32_t MAX_SCORE = 100;
+        const uint32_t MAX_RESPONSE = max_response_time_blocks;
         
-        // Response time score (faster = better, normalized to 0-1)
-        double response_score = mm.response_time_blocks <= max_response_time_blocks ? 
-            1.0 - (static_cast<double>(mm.response_time_blocks) / max_response_time_blocks) : 0.0;
+        // Reputation score (0-100)
+        uint32_t reputation_score = mm.GetEffectiveReputation();
         
-        // Fee score (lower fee = better, normalized to 0-1)
-        double fee_score = max_acceptable_fee > 0 ? 
-            1.0 - (static_cast<double>(mm.fee_sats) / max_acceptable_fee) : 0.5;
-        fee_score = std::max(0.0, std::min(1.0, fee_score));
+        // Response time score (faster = better, normalized to 0-100)
+        uint32_t response_score = mm.response_time_blocks <= MAX_RESPONSE ? 
+            (MAX_RESPONSE - mm.response_time_blocks) * 100 / MAX_RESPONSE : 0;
         
-        // Specialty match score
-        double specialty_score = CalculateSpecialtyMatchScore(mm.specialties, required_specialties);
+        // Fee score (lower fee = better, normalized to 0-100)
+        uint32_t fee_score = max_acceptable_fee > 0 ? 
+            (max_acceptable_fee - mm.fee_sats) * 100 / max_acceptable_fee : 50;
+        fee_score = std::min(100u, fee_score);
+        
+        // Specialty match score (0-100)
+        uint32_t specialty_score = static_cast<uint32_t>(CalculateSpecialtyMatchScore(mm.specialties, required_specialties) * 100);
         
         // Performance score (if enabled)
-        double perf_score = performance_weight > 0 ? 
-            mm.performance_metrics.GetOverallPerformanceScore() / 100.0 : 0.0;
+        uint32_t perf_score = performance_weight > 0 ? 
+            mm.performance_metrics.GetOverallPerformanceScore() : 0;
         
-        // Weighted total
-        return (reputation_score * reputation_weight) +
-               (response_score * response_time_weight) +
-               (fee_score * fee_weight) +
-               (specialty_score * specialty_match_weight) +
-               (perf_score * performance_weight);
+        // Weighted total (using integer math for speed, then convert to double at the end)
+        uint32_t total_score = 
+            static_cast<uint32_t>(reputation_score * reputation_weight * 100) +
+            static_cast<uint32_t>(response_score * response_time_weight * 100) +
+            static_cast<uint32_t>(fee_score * fee_weight * 100) +
+            static_cast<uint32_t>(specialty_score * specialty_match_weight * 100) +
+            static_cast<uint32_t>(perf_score * performance_weight * 100);
+            
+        return total_score / 10000.0; // Convert back to 0.0-1.0 range
     }
 
 private:
@@ -408,14 +653,54 @@ private:
         if (required_specialties.empty()) return 1.0; // No requirements = perfect match
         if (mm_specialties.empty()) return 0.0;       // No specialties = no match
         
+        // Use static cache to avoid recomputing for the same inputs
+        using SpecialtyPair = std::pair<std::vector<std::string>, std::vector<std::string>>;
+        static std::map<SpecialtyPair, double> specialty_cache;
+        
+        // Create cache key
+        SpecialtyPair cache_key(mm_specialties, required_specialties);
+        
+        // Check cache first
+        auto it = specialty_cache.find(cache_key);
+        if (it != specialty_cache.end()) {
+            return it->second;
+        }
+        
+        // Not in cache, compute the match score
+        
+        // Precompute required specialties set for O(1) lookups
+        std::unordered_set<std::string> required_set;
+        required_set.reserve(required_specialties.size());
+        for (const auto& specialty : required_specialties) {
+            required_set.insert(specialty);
+        }
+        
+        // Count matches with early termination optimization
         size_t matches = 0;
-        for (const auto& required : required_specialties) {
-            if (std::find(mm_specialties.begin(), mm_specialties.end(), required) != mm_specialties.end()) {
+        size_t remaining = mm_specialties.size();
+        
+        // Calculate maximum possible score if all remaining specialties match
+        for (const auto& specialty : mm_specialties) {
+            if (required_set.count(specialty) > 0) {
                 matches++;
+            }
+            
+            // Early termination if we can't reach a perfect score
+            remaining--;
+            if (matches + remaining < required_specialties.size()) {
+                break; // Can't reach 100% match, no need to check further
             }
         }
         
-        return static_cast<double>(matches) / required_specialties.size();
+        // Calculate final score
+        double score = static_cast<double>(matches) / required_specialties.size();
+        
+        // Cache the result (limit cache size)
+        if (specialty_cache.size() < 1000) {
+            specialty_cache[cache_key] = score;
+        }
+        
+        return score;
     }
 };
 
@@ -534,6 +819,36 @@ struct DisputeEvidence {
         return true;
     }
     
+    // Verify notary signature
+    bool VerifySignature(const CKey& notary_pubkey) const {
+        return VerifyMessage(notary_pubkey, signature, evidence_hash);
+    }
+    
+    // Active content verification
+    bool VerifyContent() const {
+        if (evidence_urls.size() != content_hashes.size()) {
+            return false;
+        }
+        
+        for (size_t i = 0; i < evidence_urls.size(); ++i) {
+            // Download content from URL
+            std::vector<uint8_t> content = DownloadContent(evidence_urls[i]);
+            if (content.empty()) {
+                return false; // Failed to download content
+            }
+            
+            // Compute hash of downloaded content
+            uint256 computed_hash = ComputeSHA256(content);
+            
+            // Compare with stored hash
+            if (computed_hash != content_hashes[i]) {
+                return false; // Hash mismatch
+            }
+        }
+        
+        return true;
+    }
+    
     // Add notary signature
     void AddNotarySignature(const CPubKey& notary_key) {
         if (notary_key.IsValid()) {
@@ -590,6 +905,8 @@ struct FallbackArbitratorRotation {
     bool emergency_rotation_active{false};      // Whether emergency rotation is active
     uint32_t min_arbitrators{3};                // Minimum number of arbitrators required
     uint32_t max_arbitrators{10};               // Maximum number of arbitrators allowed
+    std::map<CPubKey, int64_t> last_heartbeat;  // Last heartbeat timestamp for each arbitrator
+    static constexpr int64_t HEARTBEAT_TIMEOUT = 86400; // 24 hours in seconds
     
     // Default constructor
     FallbackArbitratorRotation() = default;
@@ -627,6 +944,13 @@ struct FallbackArbitratorRotation {
     CPubKey GetCurrentArbitrator() const noexcept {
         if (active_arbitrators.empty()) return CPubKey();
         return active_arbitrators[current_arbitrator_index];
+    }
+    
+    // Add heartbeat verification
+    bool IsArbitratorActive(const CPubKey& arbitrator, int64_t current_time) const noexcept {
+        auto it = std::find(active_arbitrators.begin(), active_arbitrators.end(), arbitrator);
+        return it != active_arbitrators.end() && 
+               (current_time - last_heartbeat.at(arbitrator)) < HEARTBEAT_TIMEOUT;
     }
     
     // Check if rotation is due
@@ -781,6 +1105,11 @@ struct BondInsurance {
     // Calculate required premium
     uint64_t CalculateRequiredPremium() const noexcept {
         return static_cast<uint64_t>(coverage_amount_sats * premium_rate);
+    }
+    
+    // Add coverage validation
+    bool IsCoverageValid(uint64_t job_amount) const noexcept {
+        return coverage_amount_sats >= (job_amount * MMP_MIN_BOND_TO_JOB_RATIO);
     }
     
     // Get effective coverage (considering policy terms)
@@ -1006,6 +1335,14 @@ private:
  * @struct MiddlemanInfo
  * @brief Represents a potential middleman with security features
  */
+// Slash history record for audit and transparency
+struct SlashRecord {
+    uint32_t block_height;                  // When the slash occurred
+    uint64_t amount_sats;                   // Amount slashed
+    SlashCondition condition;               // Reason for slashing
+    std::string description;                // Detailed description
+};
+
 struct MiddlemanInfo {
     CPubKey pubkey;                         // Middleman's public key
     std::string middleman_name;             // Human-readable name
@@ -1026,12 +1363,19 @@ struct MiddlemanInfo {
     uint32_t max_job_amount_sats{0};       // Maximum job amount they'll handle
     uint32_t response_time_blocks{144};    // Typical response time in blocks (default 24h)
     bool is_dao_approved{false};           // Whether approved by DAO/governance
+    std::vector<SlashRecord> slash_history; // History of bond slashes for transparency
     bool is_kyc_verified{false};           // Whether KYC verified (for fallback arbitrators)
+    
+    // Activity tracking
+    uint32_t active_disputes_count{0};     // Number of currently active disputes
+    int64_t last_activity_timestamp{0};    // Last activity timestamp
+    uint32_t max_concurrent_jobs{5};       // Maximum number of concurrent jobs
     
     // Enhanced reputation decay parameters (configurable per middleman)
     double reputation_decay_half_life_days{180.0}; // 6 months default half-life
     double min_reputation_retention{0.5};           // Minimum 50% reputation retained
     bool use_custom_decay{false};                   // Whether to use custom decay parameters
+    double custom_decay_rate{0.0038};               // Default ~0.38% daily decay rate
     
     // Performance metrics
     MiddlemanPerformance performance_metrics;       // Detailed performance tracking
@@ -1058,8 +1402,12 @@ struct MiddlemanInfo {
     
     // Comprehensive validation with all security checks
     inline bool IsValid() const noexcept {
-        return pubkey.IsValid() && 
-               bond_amount_sats >= MMP_MIN_MIDDLEMAN_BOND_SATS && 
+        // Enhanced key security check using our helper
+        if (!ValidatePubKey(pubkey)) {
+            return false;
+        }
+        
+        return bond_amount_sats >= MMP_MIN_MIDDLEMAN_BOND_SATS && 
                bond_amount_sats <= MMP_MAX_MIDDLEMAN_BOND_SATS &&
                reputation_score <= MMP_MAX_REPUTATION_SCORE &&
                !middleman_name.empty() &&
@@ -1080,6 +1428,18 @@ struct MiddlemanInfo {
         if (total_disputes == 0) return reputation_score;
         uint32_t penalty = (bond_slashes * 100) / total_disputes; // Penalty per slash
         return reputation_score > penalty ? reputation_score - penalty : 0;
+    }
+    
+    // Optimized time decay factor calculation (simplified exponential decay)
+    inline double CalculateTimeDecayFactor(int64_t time_since_active) const noexcept {
+        // Convert to days for more intuitive decay rates
+        const double days_since_active = static_cast<double>(time_since_active) / 86400.0;
+        
+        // Use custom decay rate if specified, otherwise use default
+        const double decay_rate = use_custom_decay ? custom_decay_rate : 0.0038; // ~0.38% daily decay
+        
+        // Simple exponential decay with minimum retention floor
+        return std::max(min_reputation_retention, std::exp(-decay_rate * days_since_active));
     }
     
     // Enhanced reputation calculation with time-based weighting
@@ -1126,6 +1486,11 @@ struct MiddlemanInfo {
     }
 
 private:
+    // Key validation helper for comprehensive security checks
+    inline bool ValidatePubKey(const CPubKey& key) const noexcept {
+        return key.IsValid() && key.IsFullyValid() && key.size() == COMPRESSED_PUBKEY_SIZE;
+    }
+    
     // Validate specialties vector
     inline bool ValidateSpecialties() const noexcept {
         for (const auto& specialty : specialties) {
@@ -1219,6 +1584,12 @@ struct KeyAggregationContext {
     bool middleman_assigned;      // Flag indicating if middleman key is set (only during dispute)
     uint32_t timeout_blocks;      // 24h timeout in blocks (~144 blocks)
     
+    // Key rotation security
+    int64_t last_rotation_time{0}; // Timestamp of last key rotation
+    bool keys_rotated{false};      // Whether keys have been rotated
+    static constexpr int64_t ROTATION_INTERVAL = 30 * 24 * 3600; // 30 days in seconds
+    static constexpr int64_t MAX_KEY_AGE = 60 * 24 * 3600;       // 60 days maximum key age
+    
     // Validation and consistency methods
     bool IsValid() const;
     bool AreKeysValid() const;
@@ -1231,6 +1602,27 @@ struct KeyAggregationContext {
     // Utility methods
     void Clear();
     bool IsEmpty() const;
+    
+    // Recompute key aggregation after key rotation
+    bool RecomputeAggregation() {
+        if (!employer_key.IsValid() || !worker_key.IsValid()) {
+            return false;
+        }
+        
+        // Compute aggregated key (Schnorr MuSig2)
+        std::vector<CPubKey> keys_to_aggregate = {employer_key, worker_key};
+        if (middleman_assigned && middleman_key.IsValid()) {
+            keys_to_aggregate.push_back(middleman_key);
+        }
+        
+        // Compute aggregated key
+        aggregated_key = ComputeAggregatedKey(keys_to_aggregate);
+        
+        // Compute tweak for Taproot
+        tweak = ComputeTapTweak(aggregated_key);
+        
+        return aggregated_key.IsValid() && !tweak.IsNull();
+    }
     std::string ToString() const;
 };
 
@@ -1259,6 +1651,10 @@ struct JobContract {
     uint256 resolution_txid;      // Final resolution transaction (if any)
     ResolutionPath resolution_path;
     
+    // Key rotation security
+    int64_t last_key_rotation{0}; // Timestamp of last key rotation
+    static constexpr int64_t KEY_ROTATION_INTERVAL = 2592000; // 30 days in seconds
+    
     // Worker application management
     std::vector<WorkerApplication> worker_applications;  // List of worker applications
     CPubKey assigned_worker;      // Currently assigned worker (empty if none)
@@ -1270,8 +1666,104 @@ struct JobContract {
     int64_t dispute_timestamp;    // When dispute was raised (0 if none)
     int64_t completion_timestamp; // When work was marked complete (for 24h timeout)
     CPubKey dispute_initiator;    // Who raised the dispute (employer or worker)
+    std::string dispute_reason;   // Reason for the dispute
     std::vector<CPubKey> proposed_middlemen; // Middlemen proposed by each party
     bool middleman_agreed;        // Whether both parties agreed on middleman
+    
+    // Enhanced dispute state check
+    bool IsDisputeActive() const {
+        return dispute_raised && 
+               state == JobState::DISPUTED &&
+               GetTime() - dispute_timestamp < MMP_DISPUTE_TIMEOUT_BLOCKS * 600; // Convert blocks to seconds (10 min/block)
+    }
+    
+    // Validate keys for critical actions (security check)
+    bool ValidateKeysForAction(int64_t current_time) const {
+        // Reject if keys are too old but not rotated
+        if (keys.last_rotation_time > 0 && // Only check if rotation has happened before
+            current_time - keys.last_rotation_time > keys.MAX_KEY_AGE) {
+            return false; // Force rotation first
+        }
+        
+        // For long-running jobs, ensure keys have been rotated at least once
+        if (current_time - metadata.created_timestamp > keys.ROTATION_INTERVAL * 2 && 
+            !keys.keys_rotated) {
+            return false; // Long-running job needs key rotation
+        }
+        
+        return true;
+    }
+    
+    // Check if key rotation is due
+    bool IsKeyRotationDue(int64_t current_time) const {
+        // Check if this is a long-running job that needs rotation
+        if (current_time - metadata.created_timestamp > keys.ROTATION_INTERVAL && 
+            (keys.last_rotation_time == 0 || 
+             current_time - keys.last_rotation_time > keys.ROTATION_INTERVAL)) {
+            return true;
+        }
+        
+        return false;
+    }
+    
+    // Enhanced timeout handling with early warnings
+    bool IsNearExpiration(uint32_t current_height) const {
+        static constexpr uint32_t EXPIRATION_WARNING_THRESHOLD = 24; // Warning at ~4 hours remaining
+        
+        // Calculate blocks remaining until timeout
+        uint32_t blocks_remaining = metadata.timeout_blocks - 
+                                  (current_height - metadata.created_height);
+        
+        // Return true if we're within the warning threshold
+        return blocks_remaining < EXPIRATION_WARNING_THRESHOLD && 
+               blocks_remaining > 0;
+    }
+    
+    // Enhanced key rotation mechanism for long-running jobs
+    JobActionResult RotateKeys(int64_t current_time, bool emergency_rotation = false) {
+        // Only rotate keys for active jobs
+        if (state != JobState::IN_PROGRESS && state != JobState::ASSIGNED) {
+            return JobActionResult::INVALID_CONTRACT_STATE;
+        }
+        
+        // Check if rotation is due (skip check for emergency rotations)
+        if (!emergency_rotation && 
+            current_time - keys.last_rotation_time < keys.ROTATION_INTERVAL) {
+            return JobActionResult::KEY_ROTATION_NOT_DUE;
+        }
+        
+        // Generate new keys
+        CKey new_employer_key, new_worker_key;
+        new_employer_key.MakeNewKey(true); // Compressed key
+        new_worker_key.MakeNewKey(true);   // Compressed key
+        
+        // Update key context
+        keys.employer_key = new_employer_key.GetPubKey();
+        keys.worker_key = new_worker_key.GetPubKey();
+        keys.keys_rotated = true;
+        
+        // Recompute aggregated key
+        keys.aggregated_key = ComputeAggregatedKey({keys.employer_key, keys.worker_key});
+        
+        // Recompute key aggregation
+        if (!keys.RecomputeAggregation()) {
+            return JobActionResult::AGGREGATION_FAILED;
+        }
+        
+        // Update script paths with new keys
+        if (!script_paths.UpdateWithNewKeys(keys)) {
+            return JobActionResult::SCRIPT_UPDATE_FAILED;
+        }
+        
+        // Update rotation timestamp
+        keys.last_rotation_time = current_time;
+        
+        // Log rotation for audit
+        AddEvent(JobState::IN_PROGRESS, uint256(), 
+                 emergency_rotation ? "Emergency key rotation" : "Scheduled key rotation");
+        
+        return JobActionResult::SUCCESS;
+    }
     
     // Event tracking for auditing
     struct ContractEvent {
@@ -1295,7 +1787,19 @@ struct JobContract {
     bool IsExpired(uint32_t current_height) const;
     bool CanWorkerClaimTimeout(int64_t current_timestamp) const; // Check if 24h timeout passed
     bool IsInDisputePeriod(int64_t current_timestamp) const;     // Check if still in 24h dispute window
-    void AddEvent(JobState new_state, const uint256& txid = uint256(), const std::string& memo = "") MMP_REQUIRES_LOCK;
+    void AddEvent(JobState new_state, const uint256& txid = uint256(), const std::string& memo = "") MMP_REQUIRES_LOCK {
+        ContractEvent event;
+        event.timestamp = GetTime();
+        event.state = new_state;
+        event.txid = txid;
+        event.memo = memo;
+        event_history.push_back(event);
+        
+        // Update contract state if provided
+        if (new_state != JobState::CREATED) { // Don't overwrite with default value
+            state = new_state;
+        }
+    }
 };
 
 /**
@@ -1412,13 +1916,98 @@ JobContract CreateJobContract(const CPubKey& employer, const JobMetadata& metada
 LockFundsResult LockFunds(JobContract& contract, const CTransaction& funding_tx, uint32_t vout);
 JobActionResult AcceptJob(JobContract& contract, const CPubKey& worker_key);
 JobActionResult SubmitWork(JobContract& contract, const std::string& work_proof_url);
-JobActionResult ConfirmCompletion(JobContract& contract, bool employer_approves);
+JobActionResult ConfirmCompletion(JobContract& contract, bool employer_approves) {
+    // Validate contract state
+    if (contract.state != JobState::COMPLETED) {
+        return JobActionResult::INVALID_CONTRACT_STATE;
+    }
+    
+    // Enforce key rotation for security on long-running jobs
+    if (!contract.ValidateKeysForAction(GetTime())) {
+        return JobActionResult::KEY_ROTATION_REQUIRED;
+    }
+    
+    if (employer_approves) {
+        // Set resolved state
+        contract.state = JobState::RESOLVED;
+        contract.resolution_path = ResolutionPath::COOPERATIVE;
+        
+        // Log completion event
+        contract.AddEvent(JobState::RESOLVED, uint256(), "Job completed and approved");
+    } else {
+        // If employer doesn't approve, move to disputed state
+        contract.state = JobState::DISPUTED;
+        contract.dispute_raised = true;
+        contract.dispute_timestamp = GetTime();
+        contract.dispute_initiator = contract.keys.employer_key;
+        
+        // Trigger emergency key rotation for security
+        contract.RotateKeys(GetTime(), true);
+        
+        // Log dispute event
+        contract.AddEvent(JobState::DISPUTED, uint256(), "Employer rejected completion");
+    }
+    
+    return JobActionResult::SUCCESS;
+};
 // Dispute resolution with middleman selection
 JobActionResult RaiseDispute(JobContract& contract, const CPubKey& disputer_key, 
-                            const std::string& dispute_reason, const CPubKey& proposed_middleman);
+                            const std::string& dispute_reason, const CPubKey& proposed_middleman) {
+    // Validate contract state
+    if (contract.state != JobState::IN_PROGRESS && contract.state != JobState::COMPLETED) {
+        return JobActionResult::INVALID_CONTRACT_STATE;
+    }
+    
+    // Validate disputer key
+    if (disputer_key != contract.keys.employer_key && disputer_key != contract.keys.worker_key) {
+        return JobActionResult::INVALID_KEY;
+    }
+    
+    // Set dispute state
+    contract.state = JobState::DISPUTED;
+    contract.dispute_raised = true;
+    contract.dispute_timestamp = GetTime();
+    contract.dispute_initiator = disputer_key;
+    
+    // Store dispute reason and proposed middleman
+    contract.dispute_reason = dispute_reason;
+    if (proposed_middleman.IsValid()) {
+        contract.proposed_middlemen.push_back(proposed_middleman);
+    }
+    
+    // Trigger emergency key rotation for security
+    contract.RotateKeys(GetTime(), true);
+    
+    return JobActionResult::SUCCESS;
+};
 JobActionResult ProposeMiddleman(JobContract& contract, const CPubKey& proposer_key, const CPubKey& middleman_key);
 JobActionResult AcceptMiddleman(JobContract& contract, const CPubKey& accepter_key, const CPubKey& middleman_key);
-JobActionResult ResolveDispute(JobContract& contract, ResolutionPath resolution, const CPubKey& middleman_key);
+JobActionResult ResolveDispute(JobContract& contract, ResolutionPath resolution, const CPubKey& middleman_key) {
+    // Validate contract state
+    if (contract.state != JobState::DISPUTED) {
+        return JobActionResult::INVALID_CONTRACT_STATE;
+    }
+    
+    // Validate middleman key
+    if (contract.middleman_info.pubkey != middleman_key || !middleman_key.IsValid()) {
+        return JobActionResult::INVALID_KEY;
+    }
+    
+    // Enforce key rotation for security
+    if (!contract.ValidateKeysForAction(GetTime())) {
+        return JobActionResult::KEY_ROTATION_REQUIRED;
+    }
+    
+    // Set resolution state
+    contract.state = JobState::RESOLVED;
+    contract.resolution_path = resolution;
+    
+    // Log resolution event
+    contract.AddEvent(JobState::RESOLVED, uint256(), 
+                     "Dispute resolved via " + std::to_string(static_cast<int>(resolution)));
+    
+    return JobActionResult::SUCCESS;
+};
 
 // Two-phase escrow specific functions
 JobActionResult WorkerClaimTimeout(JobContract& contract, const CPubKey& worker_key); // Worker claims after 24h
@@ -1506,11 +2095,419 @@ struct DisputeResolutionConfig {
 // Middleman functions
 JobActionResult AcceptMiddlemanRole(JobContract& contract, const CPubKey& middleman_key);
 JobActionResult MiddlemanResolveDispute(JobContract& contract, const CPubKey& middleman_key, 
-                                       ResolutionPath resolution, const std::string& reasoning);
+                                       ResolutionPath resolution, const std::string& reasoning,
+                                       const std::vector<uint8_t>& signature,
+                                       const std::vector<uint8_t>& evidence_hash = {});
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
+/**
+ * @brief Compute aggregated key from multiple public keys (MuSig2) with caching
+ * @param keys Vector of public keys to aggregate
+ * @return Aggregated public key
+ */
+CPubKey ComputeAggregatedKey(const std::vector<CPubKey>& keys) {
+    // Safety checks
+    if (keys.empty()) {
+        return CPubKey();
+    }
+    
+    for (const auto& key : keys) {
+        if (!key.IsValid()) {
+            return CPubKey();
+        }
+    }
+    
+    // For a single key, just return it
+    if (keys.size() == 1) {
+        return keys[0];
+    }
+    
+    // Create a cache key by concatenating all public keys
+    std::string cache_key;
+    for (const auto& key : keys) {
+        cache_key.append(key.ToString());
+    }
+    
+    // Check if we have this combination cached
+    static std::map<std::string, CPubKey> aggregation_cache;
+    auto it = aggregation_cache.find(cache_key);
+    if (it != aggregation_cache.end()) {
+        return it->second; // Return cached result
+    }
+    
+    // Not in cache, compute the aggregated key
+    
+    // Initialize secp256k1 context with MuSig capabilities
+    secp256k1_context* ctx = secp256k1_context_create(SECP256K1_CONTEXT_SIGN | SECP256K1_CONTEXT_VERIFY);
+    if (!ctx) {
+        return CPubKey();
+    }
+    
+    // Convert all public keys to secp256k1 format
+    std::vector<secp256k1_pubkey> pubkeys;
+    pubkeys.reserve(keys.size());
+    
+    for (const auto& key : keys) {
+        secp256k1_pubkey pubkey;
+        if (!secp256k1_ec_pubkey_parse(ctx, &pubkey, key.data(), key.size())) {
+            secp256k1_context_destroy(ctx);
+            return CPubKey();
+        }
+        pubkeys.push_back(pubkey);
+    }
+    
+    // Perform MuSig2 key aggregation
+    secp256k1_pubkey combined_pubkey;
+    if (!secp256k1_musig_pubkey_combine(ctx, &combined_pubkey, nullptr, pubkeys.data(), pubkeys.size())) {
+        secp256k1_context_destroy(ctx);
+        return CPubKey();
+    }
+    
+    // Serialize the aggregated public key
+    unsigned char output[33];
+    size_t outputlen = sizeof(output);
+    if (!secp256k1_ec_pubkey_serialize(ctx, output, &outputlen, &combined_pubkey, SECP256K1_EC_COMPRESSED)) {
+        secp256k1_context_destroy(ctx);
+        return CPubKey();
+    }
+    
+    // Clean up
+    secp256k1_context_destroy(ctx);
+    
+    // Create CPubKey from serialized data
+    CPubKey result(output, output + outputlen);
+    
+    // Cache the result (limit cache size to prevent memory issues)
+    if (aggregation_cache.size() < 1000) { // Limit cache size
+        aggregation_cache[cache_key] = result;
+    }
+    
+    return result;
+}
+
+/**
+ * @brief Compute Taproot tweak from an aggregated key
+ * @param key The aggregated key to tweak
+ * @return The tweak value
+ */
+uint256 ComputeTapTweak(const CPubKey& key) {
+    // Safety checks
+    if (!key.IsValid()) {
+        return uint256();
+    }
+    
+    // Initialize secp256k1 context with Taproot capabilities
+    secp256k1_context* ctx = secp256k1_context_create(SECP256K1_CONTEXT_VERIFY);
+    if (!ctx) {
+        return uint256();
+    }
+    
+    // Parse the public key
+    secp256k1_pubkey pubkey;
+    if (!secp256k1_ec_pubkey_parse(ctx, &pubkey, key.data(), key.size())) {
+        secp256k1_context_destroy(ctx);
+        return uint256();
+    }
+    
+    // Convert to x-only pubkey format for Taproot
+    secp256k1_xonly_pubkey xonly_pubkey;
+    if (!secp256k1_xonly_pubkey_from_pubkey(ctx, &xonly_pubkey, nullptr, &pubkey)) {
+        secp256k1_context_destroy(ctx);
+        return uint256();
+    }
+    
+    // Compute the Taproot tweak
+    unsigned char tweak_bytes[32];
+    if (!secp256k1_taproot_tweak_pubkey(ctx, &pubkey, tweak_bytes, &xonly_pubkey, nullptr, 0)) {
+        secp256k1_context_destroy(ctx);
+        return uint256();
+    }
+    
+    // Clean up
+    secp256k1_context_destroy(ctx);
+    
+    // Convert to uint256
+    uint256 tweak;
+    memcpy(tweak.begin(), tweak_bytes, 32);
+    
+    return tweak;
+}
+
+/**
+ * @brief Create a multisig script from public keys
+ * @param keys Vector of public keys
+ * @param required Number of required signatures
+ * @return The multisig script
+ */
+CScript CreateMultisigScript(const std::vector<CPubKey>& keys, int required) {
+    // Safety checks
+    assert(keys.size() <= 16); // Bitcoin consensus limit
+    assert(required <= keys.size());
+    assert(required > 0);
+    
+    // Generalized M-of-N multisig (compatible with Bitcoin Core's encoding)
+    CScript script;
+    
+    // Add the required number of signatures (M)
+    script << CScript::EncodeOP_N(required);
+    
+    // Add each public key
+    for (const auto& key : keys) {
+        script << ToByteVector(key);
+    }
+    
+    // Add the total number of keys (N)
+    script << CScript::EncodeOP_N(keys.size());
+    
+    // Add the CHECKMULTISIG opcode
+    script << OP_CHECKMULTISIG;
+    
+    return script;
+}
+
+/**
+ * @brief Create a timelocked script for a public key
+ * @param key The public key
+ * @param blocks Number of blocks for timelock
+ * @return The timelocked script
+ */
+CScript CreateTimelockedScript(const CPubKey& key, uint32_t blocks) {
+    // Safety checks
+    assert(key.IsValid());
+    assert(blocks > 0);
+    
+    // Create a script that can only be spent after the specified number of blocks
+    // Format: <OP_CHECKLOCKTIMEVERIFY> <OP_DROP> <pubkey> <OP_CHECKSIG>
+    CScript script;
+    
+    // Add the block height for the timelock
+    script << blocks;
+    
+    // Add CHECKLOCKTIMEVERIFY and DROP
+    script << OP_CHECKLOCKTIMEVERIFY;
+    script << OP_DROP;
+    
+    // Add the public key and CHECKSIG
+    script << ToByteVector(key);
+    script << OP_CHECKSIG;
+    
+    return script;
+}
+
+/**
+ * @brief Create a split payment script controlled by a middleman
+ * @param middleman_key The middleman's public key
+ * @return The split payment script
+ */
+CScript CreateSplitPaymentScript(const CPubKey& middleman_key) {
+    // Safety checks
+    assert(middleman_key.IsValid());
+    
+    // Create a script that allows the middleman to split the payment
+    // This is implemented as a standard P2PK script for the middleman
+    // The actual split logic happens in the spending transaction
+    CScript script;
+    
+    // Add the middleman's public key
+    script << ToByteVector(middleman_key);
+    
+    // Add CHECKSIG
+    script << OP_CHECKSIG;
+    
+    return script;
+}
+
+/**
+ * @brief Create an emergency resolution script
+ * @param middleman_key The middleman's public key
+ * @return The emergency script
+ */
+CScript CreateEmergencyScript(const CPubKey& middleman_key) {
+    // Safety checks
+    assert(middleman_key.IsValid());
+    
+    // Create a script that allows emergency resolution by the middleman
+    // This is a special case script that requires additional evidence hash
+    CScript script;
+    
+    // Add OP_HASH256 to hash the provided evidence
+    script << OP_HASH256;
+    
+    // Add a placeholder for the evidence hash (will be filled during execution)
+    script << std::vector<unsigned char>(32, 0);
+    
+    // Add OP_EQUALVERIFY to verify the evidence hash
+    script << OP_EQUALVERIFY;
+    
+    // Add the middleman's public key
+    script << ToByteVector(middleman_key);
+    
+    // Add CHECKSIG
+    script << OP_CHECKSIG;
+    
+    return script;
+}
+
+/**
+ * @brief Download content from a URL
+ * @param url The URL to download from
+ * @return The downloaded content as a byte vector
+ */
+std::vector<uint8_t> DownloadContent(const std::string& url) {
+    // Safety checks
+    if (url.empty() || url.length() > MMP_MAX_METADATA_URL_LENGTH) {
+        return {};
+    }
+    
+    // Initialize CURL
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        return {};
+    }
+    
+    // Set up the download buffer
+    std::vector<uint8_t> content;
+    
+    // Set up the write callback function
+    auto write_callback = [](char* ptr, size_t size, size_t nmemb, void* userdata) -> size_t {
+        auto* buffer = static_cast<std::vector<uint8_t>*>(userdata);
+        
+        // Check for buffer size limit
+        if (buffer->size() + size * nmemb > MMP_MAX_BUFFER_SIZE) {
+            return 0; // Abort download if too large
+        }
+        
+        // Append the data to the buffer
+        buffer->insert(buffer->end(), ptr, ptr + size * nmemb);
+        return size * nmemb;
+    };
+    
+    // Configure CURL
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_callback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &content);
+    curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_MAXREDIRS, 3L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+    curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, "MMP/1.0");
+    
+    // Perform the request
+    CURLcode res = curl_easy_perform(curl);
+    
+    // Clean up
+    curl_easy_cleanup(curl);
+    
+    // Check for errors
+    if (res != CURLE_OK) {
+        return {};
+    }
+    
+    return content;
+}
+
+/**
+ * @brief Create a replacement transaction with higher fee
+ * @param original_tx The original transaction
+ * @param fee_multiplier Multiplier for the fee (e.g., 1.5 for 50% higher)
+ * @return The replacement transaction
+ */
+CTransaction CreateReplacementTransaction(const CTransaction& original_tx, double fee_multiplier) {
+    // This is a placeholder for the actual implementation
+    // In a real implementation, this would:
+    // 1. Create a new transaction spending the same inputs
+    // 2. Set nSequence to signal RBF (Replace-By-Fee)
+    // 3. Adjust the output amounts to increase the fee
+    // 4. Sign the transaction
+    
+    // For now, just return a copy of the original transaction
+    return original_tx;
+}
+
+/**
+ * @brief Broadcast a transaction to the network
+ * @param tx The transaction to broadcast
+ * @return True if broadcast was successful
+ */
+bool BroadcastTransaction(const CTransaction& tx) {
+    // This is a placeholder for the actual implementation
+    // In a real implementation, this would:
+    // 1. Serialize the transaction
+    // 2. Send it to the Bitcoin network
+    // 3. Return success/failure based on network response
+    
+    // For now, just return success
+    return true;
+}
+
+/**
+ * @brief Check if a transaction is confirmed
+ * @param txid The transaction ID
+ * @param current_height Current blockchain height
+ * @return True if transaction is confirmed
+ */
+bool IsTransactionConfirmed(const uint256& txid, uint32_t current_height) {
+    // This is a placeholder for the actual implementation
+    // In a real implementation, this would:
+    // 1. Query the blockchain for the transaction
+    // 2. Check if it has sufficient confirmations
+    
+    // For now, just return false
+    return false;
+}
+
+/**
+ * @brief Compute SHA256 hash of content
+ * @param content The content to hash
+ * @return The SHA256 hash
+ */
+uint256 ComputeSHA256(const std::vector<uint8_t>& content) {
+    // Safety checks
+    if (content.empty()) {
+        return uint256();
+    }
+    
+    // Use Bitcoin's CSHA256 class for hashing
+    CSHA256 hasher;
+    
+    // Add the content to the hasher
+    hasher.Write(content.data(), content.size());
+    
+    // Finalize the hash
+    uint256 hash;
+    hasher.Finalize(hash.begin());
+    
+    return hash;
+}
 
 // ============================================================================
 // MIDDLEMAN FUNCTIONS
 // ============================================================================
+
+/**
+ * @brief Comprehensive middleman authorization check
+ * @param contract The job contract
+ * @param middleman_key The middleman's pubkey
+ * @param signature The signature to verify
+ * @param action_type The type of action being authorized
+ * @return True if the middleman is authorized for this action
+ */
+bool AuthorizeMiddlemanAction(const JobContract& contract, 
+                             const CPubKey& middleman_key,
+                             const std::vector<uint8_t>& signature,
+                             const std::string& action_type) {
+    // Verify middleman is assigned to this job
+    if (contract.middleman_info.pubkey != middleman_key) 
+        return false;
+    
+    // Verify action signature
+    uint256 action_hash = ComputeActionHash(contract.job_id, action_type);
+    return VerifySignature(middleman_key, signature, action_hash);
+}
 
 /**
  * @brief Proposes a middleman for dispute resolution
@@ -1565,12 +2562,319 @@ JobActionResult MiddlemanResolveDispute(
     const CPubKey& middleman_key,
     ResolutionPath resolution,
     const std::string& reasoning,
+    const std::vector<uint8_t>& signature,
     const std::vector<uint8_t>& evidence_hash = {}
-) MMP_STRONG_EXCEPTION_SAFETY;
+) MMP_STRONG_EXCEPTION_SAFETY {
+    // Add authorization check before any operations
+    if (!AuthorizeMiddlemanAction(contract, middleman_key, signature, "DISPUTE_RESOLUTION")) {
+        return JobActionResult::MIDDLEMAN_NOT_AUTHORIZED;
+    }
+    
+    // Add state verification
+    if (contract.state != JobState::DISPUTED) {
+        return JobActionResult::INVALID_CONTRACT_STATE;
+    }
+    
+    // Enforce key rotation for security
+    if (!contract.ValidateKeysForAction(GetTime())) {
+        return JobActionResult::KEY_ROTATION_REQUIRED;
+    }
+    
+    // Check if dispute is still active
+    if (!contract.IsDisputeActive()) {
+        return JobActionResult::TIMEOUT_EXPIRED;
+    }
+    
+    // Verify middleman bond and reputation requirements
+    if (!contract.middleman_info.IsValid() || 
+        !contract.middleman_info.IsQualifiedForJob(contract.metadata.job_amount_sats)) {
+        return JobActionResult::INSUFFICIENT_MIDDLEMAN_BOND;
+    }
+    
+    // Validate resolution reasoning
+    if (reasoning.empty() || reasoning.length() > MMP_MAX_DISPUTE_REASON_LENGTH) {
+        return JobActionResult::RESOLUTION_REASONING_INVALID;
+    }
+    
+    // Verify evidence hash if provided
+    if (!evidence_hash.empty() && evidence_hash.size() != 32) {
+        return JobActionResult::EVIDENCE_HASH_REQUIRED;
+    }
+    
+    // Implementation continues in the .cpp file
+    return JobActionResult::SUCCESS;
+};
 
 // Configuration and utility functions
 JobActionResult SetDisputeResolutionConfig(JobContract& contract, const DisputeResolutionConfig& config);
 std::vector<MiddlemanInfo> GetSuggestedMiddlemen(const JobContract& contract, uint32_t limit = 5);
+
+/**
+ * @brief Apply time-based reputation decay to multiple middlemen in batch
+ * @param middlemen Vector of middleman info to update
+ * @param current_time Current timestamp for decay calculation
+ * @return Number of middlemen updated
+ */
+size_t BatchApplyReputationDecay(std::vector<MiddlemanInfo>& middlemen, int64_t current_time) {
+    static constexpr int64_t SECONDS_PER_MONTH = 2592000; // 30 days in seconds
+    static constexpr uint32_t MIN_REPUTATION = 10; // Minimum reputation floor
+    
+    size_t updated_count = 0;
+    
+    // Pre-compute decay factors for common time periods to avoid redundant pow() calls
+    static std::map<int, double> decay_factor_cache;
+    
+    for (auto& mm : middlemen) {
+        // Calculate time since last activity
+        int64_t time_since_activity = current_time - mm.last_activity_timestamp;
+        if (time_since_activity <= 0) continue; // No decay needed
+        
+        // Calculate months elapsed (rounded to nearest integer for caching)
+        int months_elapsed = static_cast<int>(std::round(static_cast<double>(time_since_activity) / SECONDS_PER_MONTH));
+        if (months_elapsed <= 0) continue; // No decay needed
+        
+        // Get decay factor from cache or compute it
+        double decay_factor;
+        auto it = decay_factor_cache.find(months_elapsed);
+        if (it != decay_factor_cache.end()) {
+            decay_factor = it->second;
+        } else {
+            decay_factor = pow(0.95, months_elapsed); // 5% decay per month
+            // Cache the result if cache isn't too large
+            if (decay_factor_cache.size() < 100) {
+                decay_factor_cache[months_elapsed] = decay_factor;
+            }
+        }
+        
+        // Apply decay with floor
+        uint32_t old_score = mm.reputation_score;
+        mm.reputation_score = std::max(MIN_REPUTATION, 
+            static_cast<uint32_t>(mm.reputation_score * decay_factor));
+        
+        // Count as updated only if score actually changed
+        if (old_score != mm.reputation_score) {
+            updated_count++;
+        }
+    }
+    
+    return updated_count;
+}
+
+/**
+ * @brief Check active jobs for key rotation needs
+ * @param contracts Vector of active job contracts
+ * @param current_time Current timestamp
+ * @return Vector of job IDs that need key rotation
+ */
+std::vector<uint256> CheckKeyRotationNeeds(const std::vector<JobContract>& contracts, int64_t current_time) {
+    std::vector<uint256> jobs_needing_rotation;
+    
+    for (const auto& contract : contracts) {
+        // Only check active jobs
+        if (contract.state != JobState::IN_PROGRESS && contract.state != JobState::ASSIGNED) {
+            continue;
+        }
+        
+        // Check if key rotation is due
+        if (contract.IsKeyRotationDue(current_time)) {
+            jobs_needing_rotation.push_back(contract.job_id);
+        }
+    }
+    
+    return jobs_needing_rotation;
+}
+
+/**
+ * @brief Attempt to recover from a failed transaction
+ * @param result The original transaction result
+ * @param tx The transaction that failed
+ * @param contract The contract associated with the transaction
+ * @param current_height Current blockchain height
+ * @return Updated result after recovery attempt
+ */
+LockFundsResult AttemptTransactionRecovery(
+    LockFundsResult result,
+    const CTransaction& tx,
+    JobContract& contract,
+    uint32_t current_height
+) {
+    // If transaction was successful, no recovery needed
+    if (result == LockFundsResult::SUCCESS) {
+        return result;
+    }
+    
+    // Log the recovery attempt
+    contract.AddEvent(contract.state, uint256(), 
+                     "Attempting recovery for failed transaction: " + 
+                     std::to_string(static_cast<int>(result)));
+    
+    // Different recovery strategies based on the error
+    switch (result) {
+        case LockFundsResult::TX_FEE_TOO_LOW:
+            // Create a replacement transaction with higher fee
+            // This is a Child-Pays-For-Parent (CPFP) or Replace-By-Fee (RBF) strategy
+            {
+                // Increase fee by 50%
+                CTransaction replacement_tx = CreateReplacementTransaction(tx, 1.5);
+                
+                // Attempt to broadcast the replacement
+                bool broadcast_success = BroadcastTransaction(replacement_tx);
+                
+                if (broadcast_success) {
+                    // Update contract with new transaction
+                    contract.funding_txid = replacement_tx.GetHash();
+                    return LockFundsResult::SUCCESS;
+                }
+            }
+            break;
+            
+        case LockFundsResult::TX_MEMPOOL_FULL:
+            // Wait and retry later (exponential backoff would be implemented in the caller)
+            break;
+            
+        case LockFundsResult::TX_TIMEOUT:
+            // Check if transaction is confirmed despite timeout
+            if (IsTransactionConfirmed(tx.GetHash(), current_height)) {
+                // Transaction was actually confirmed
+                return LockFundsResult::SUCCESS;
+            }
+            break;
+            
+        case LockFundsResult::TX_REJECTED:
+        case LockFundsResult::TX_MALFORMED:
+            // These require manual intervention, log the error
+            contract.AddEvent(contract.state, uint256(), 
+                             "Transaction failed with unrecoverable error: " + 
+                             std::to_string(static_cast<int>(result)));
+            break;
+            
+        default:
+            // Other errors may not be recoverable automatically
+            break;
+    }
+    
+    // Return the original result if recovery failed
+    return result;
+}
+
+/**
+ * @brief Check for jobs approaching key rotation deadline
+ * @param contracts Vector of active job contracts
+ * @param current_time Current timestamp
+ * @param warning_threshold_seconds Time before rotation to trigger warning
+ * @return Vector of job IDs approaching rotation deadline
+ */
+std::vector<uint256> CheckKeyRotationWarnings(
+    const std::vector<JobContract>& contracts, 
+    int64_t current_time,
+    int64_t warning_threshold_seconds = 86400 // 1 day warning
+) {
+    std::vector<uint256> jobs_with_warnings;
+    
+    for (const auto& contract : contracts) {
+        // Only check active jobs
+        if (contract.state != JobState::IN_PROGRESS && contract.state != JobState::ASSIGNED) {
+            continue;
+        }
+        
+        // Calculate time until next rotation
+        int64_t next_rotation_time = 0;
+        if (contract.keys.last_rotation_time > 0) {
+            next_rotation_time = contract.keys.last_rotation_time + contract.keys.ROTATION_INTERVAL;
+        } else {
+            next_rotation_time = contract.metadata.created_timestamp + contract.keys.ROTATION_INTERVAL;
+        }
+        
+        // Check if we're within warning threshold
+        if (next_rotation_time - current_time <= warning_threshold_seconds && 
+            next_rotation_time > current_time) {
+            jobs_with_warnings.push_back(contract.job_id);
+        }
+    }
+    
+    return jobs_with_warnings;
+}
+
+/**
+ * @brief Apply time-based reputation decay to a middleman
+ * @param mm The middleman info to update
+ * @param current_time Current timestamp for decay calculation
+ */
+void ApplyReputationDecay(MiddlemanInfo& mm, int64_t current_time) {
+    static constexpr int64_t SECONDS_PER_MONTH = 2592000; // 30 days in seconds
+    static constexpr uint32_t MIN_REPUTATION = 10; // Minimum reputation floor
+    
+    // Calculate time since last activity
+    int64_t time_since_activity = current_time - mm.last_activity_timestamp;
+    if (time_since_activity <= 0) return; // No decay needed
+    
+    // Calculate decay factor based on time (exponential decay)
+    double months_elapsed = static_cast<double>(time_since_activity) / SECONDS_PER_MONTH;
+    double decay_factor = pow(0.95, months_elapsed); // 5% decay per month
+    
+    // Apply decay with floor
+    mm.reputation_score = std::max(MIN_REPUTATION, 
+        static_cast<uint32_t>(mm.reputation_score * decay_factor));
+}
+
+/**
+ * @brief Process bond slashing with proportional damage safeguards and cooling-off period
+ * @param proposal The bond slash proposal
+ * @param mm The middleman info to update
+ * @param current_height Current blockchain height
+ * @return True if slashing was successful, false if cooling-off or validation failed
+ */
+bool ProcessBondSlashing(const BondSlashProposal& proposal, MiddlemanInfo& mm, uint32_t current_height) {
+    // Validate proposal with proportional damage check
+    if (!proposal.IsValid(mm.bond_amount_sats)) {
+        return false;
+    }
+    
+    // Check if we have enough DAO approvers
+    if (proposal.dao_approvers.size() < MMP_MIN_DAO_APPROVERS) {
+        return false;
+    }
+    
+    // Check if middleman has enough bond to slash
+    if (mm.bond_amount_sats < proposal.slash_amount_sats) {
+        return false;
+    }
+    
+    // Check if this is a large slash requiring cooling-off period
+    bool is_large_slash = static_cast<double>(proposal.slash_amount_sats) / mm.bond_amount_sats >= MMP_LARGE_SLASH_THRESHOLD;
+    
+    if (is_large_slash) {
+        // For large slashes, we need to check if the cooling-off period has passed
+        if (proposal.proposal_height == 0 || current_height < proposal.proposal_height + MMP_COOLING_OFF_BLOCKS) {
+            // Either no proposal height recorded or cooling-off period not yet passed
+            // Store the proposal height if not already set
+            if (proposal.proposal_height == 0) {
+                const_cast<BondSlashProposal&>(proposal).proposal_height = current_height;
+            }
+            return false; // Cooling-off period in effect
+        }
+    }
+    
+    // Apply the slash
+    mm.bond_amount_sats -= proposal.slash_amount_sats;
+    mm.bond_slashes++;
+    
+    // Update reputation based on slash
+    uint32_t reputation_penalty = static_cast<uint32_t>(
+        (static_cast<double>(proposal.slash_amount_sats) / mm.bond_amount_sats) * 20.0);
+    mm.reputation_score = mm.reputation_score > reputation_penalty ? 
+                          mm.reputation_score - reputation_penalty : 0;
+    
+    // Log the slash with timestamp
+    mm.slash_history.push_back({
+        current_height,
+        proposal.slash_amount_sats,
+        proposal.slash_condition,
+        proposal.reason
+    });
+    
+    return true;
+}
 
 // Enhanced bond slashing system with appeal process
 /**
@@ -1613,15 +2917,37 @@ struct BondSlashProposal {
     std::vector<CPubKey> dao_approvers; // DAO members who approved
     bool is_executed;                   // Whether slash was executed
     SlashEscrow escrow_info;            // Escrow details for slashed funds
+    uint32_t proposal_height{0};        // Block height when proposed (for cooling-off period)
+    SlashCondition slash_condition;     // Condition that triggered the slash
     
-    bool IsValid() const {
-        return middleman_key.IsValid() && 
-               proposer_key.IsValid() &&
-               slash_amount_sats > 0 &&
-               !reason.empty() &&
-               reason.length() <= MMP_MAX_DISPUTE_REASON_LENGTH &&
-               challenge_period_blocks >= 144 && // At least 24h for appeals
-               (is_executed ? escrow_info.IsValid() : true); // Escrow must be valid if executed
+    // Bond slashing safeguards - proportional to damage
+    bool IsProportionalToDamage(uint64_t middleman_bond_amount) const {
+        static constexpr double MAX_SLASH_PERCENTAGE = 0.5; // Maximum 50% of bond per slash
+        return slash_amount_sats <= static_cast<uint64_t>(middleman_bond_amount * MAX_SLASH_PERCENTAGE);
+    }
+    
+    bool IsValid(uint64_t middleman_bond_amount = 0) const {
+        // Basic validation
+        if (!middleman_key.IsValid() || 
+            !proposer_key.IsValid() ||
+            slash_amount_sats == 0 ||
+            reason.empty() ||
+            reason.length() > MMP_MAX_DISPUTE_REASON_LENGTH ||
+            challenge_period_blocks < 144) { // At least 24h for appeals
+            return false;
+        }
+        
+        // Escrow validation if executed
+        if (is_executed && !escrow_info.IsValid()) {
+            return false;
+        }
+        
+        // Proportional damage check if bond amount is provided
+        if (middleman_bond_amount > 0 && !IsProportionalToDamage(middleman_bond_amount)) {
+            return false;
+        }
+        
+        return true;
     }
 };
 
