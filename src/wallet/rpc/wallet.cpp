@@ -984,6 +984,10 @@ RPCHelpMan bumpfee();
 RPCHelpMan psbtbumpfee();
 RPCHelpMan send();
 RPCHelpMan sendall();
+
+// MMP wallet functions
+RPCHelpMan createjobpost();
+RPCHelpMan applytojob();
 RPCHelpMan walletprocesspsbt();
 RPCHelpMan walletcreatefundedpsbt();
 RPCHelpMan signrawtransactionwithwallet();
@@ -1049,6 +1053,8 @@ std::span<const CRPCCommand> GetWalletRPCCommands()
         {"wallet", &sendmany},
         {"wallet", &sendtoaddress},
         {"wallet", &setlabel},
+        {"mmp", &createjobpost},
+        {"mmp", &applytojob},
         {"wallet", &settxfee},
         {"wallet", &setwalletflag},
         {"wallet", &signmessage},

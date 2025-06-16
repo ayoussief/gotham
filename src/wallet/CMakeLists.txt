@@ -26,6 +26,7 @@ add_library(gotham_wallet STATIC EXCLUDE_FROM_ALL
   rpc/transactions.cpp
   rpc/util.cpp
   rpc/wallet.cpp
+  rpc/mmp.cpp
   scriptpubkeyman.cpp
   spend.cpp
   sqlite.cpp
@@ -38,6 +39,7 @@ target_link_libraries(gotham_wallet
   PRIVATE
     core_interface
     gotham_common
+    gotham_node
     $<TARGET_NAME_IF_EXISTS:unofficial::sqlite3::sqlite3>
     $<TARGET_NAME_IF_EXISTS:SQLite::SQLite3>
     univalue

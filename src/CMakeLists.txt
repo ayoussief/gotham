@@ -100,6 +100,7 @@ add_dependencies(gotham_clientversion generate_build_info)
 
 add_subdirectory(crypto)
 add_subdirectory(util)
+# MMP files are now included directly in gotham_node
 if(ENABLE_IPC)
   add_subdirectory(ipc)
 endif()
@@ -302,6 +303,12 @@ add_library(gotham_node STATIC EXCLUDE_FROM_ALL
   rpc/server_util.cpp
   rpc/signmessage.cpp
   rpc/txoutproof.cpp
+  mmp/taproot/taproot.cpp
+  mmp/middleman/middleman.cpp
+  mmp/middleman/middleman_utils.cpp
+  mmp/contract/job_contract.cpp
+  mmp/contract/job_contract_types.cpp
+  mmp/job.cpp
   script/sigcache.cpp
   signet.cpp
   torcontrol.cpp
