@@ -71,7 +71,7 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
  */
 static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
 {
-    const char* pszTimestamp = "Gotham 07/Jun/2025 Arkhams gates swing open. The asylum is now the warden.";
+    const char* pszTimestamp = "Gotham 16/Jun/2025 Arkhams gates swing open. The asylum is now the warden.";
     const CScript genesisOutputScript = CScript() << "042a53e91e0e2e41ce7c9bc2d3600478aec19fffa1c049a622e80c1417f94405f392cbdfdc68dec9f715be20d91cd63a5cbc8b73c3093d98e2875e6c1a1107748a"_hex << OP_CHECKSIG;
     return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nVersion, genesisReward);
 }
@@ -117,7 +117,7 @@ static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits
 // }
 
 // static CBlock CreateGenesisBlockMultithreaded(uint32_t nTime, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward) {
-//     const char* pszTimestamp = "Gotham 07/Jun/2025 Arkhams gates swing open. The asylum is now the warden.";
+//     const char* pszTimestamp = "Gotham 16/Jun/2025 Arkhams gates swing open. The asylum is now the warden.";
 //     const CScript genesisOutputScript = CScript() << "042a53e91e0e2e41ce7c9bc2d3600478aec19fffa1c049a622e80c1417f94405f392cbdfdc68dec9f715be20d91cd63a5cbc8b73c3093d98e2875e6c1a1107748a"_hex << OP_CHECKSIG;
     
 //     CBlock genesis = CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, 0, nBits, nVersion, genesisReward);
@@ -173,11 +173,11 @@ public:
         consensus.signet_challenge.clear();
         consensus.nSubsidyHalvingInterval = 210000;
         consensus.script_flag_exceptions.emplace( // BIP16 exception
-            uint256{"00000000003b06607a95c05c305c0d1e566ca7c446bcbab0fdae923e72472f4a"}, SCRIPT_VERIFY_NONE);
+            uint256{"0000000034e273438482c41f148e67d4a0f9494b44cd88c2ec5b57d4b1fd06ac"}, SCRIPT_VERIFY_NONE);
         consensus.script_flag_exceptions.emplace( // Taproot exception
-            uint256{"00000000003b06607a95c05c305c0d1e566ca7c446bcbab0fdae923e72472f4a"}, SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_WITNESS);
+            uint256{"0000000034e273438482c41f148e67d4a0f9494b44cd88c2ec5b57d4b1fd06ac"}, SCRIPT_VERIFY_P2SH | SCRIPT_VERIFY_WITNESS);
         consensus.BIP34Height = 0;
-        consensus.BIP34Hash = uint256{"00000000003b06607a95c05c305c0d1e566ca7c446bcbab0fdae923e72472f4a"};
+        consensus.BIP34Hash = uint256{"0000000034e273438482c41f148e67d4a0f9494b44cd88c2ec5b57d4b1fd06ac"};
         consensus.BIP65Height = 0; 
         consensus.BIP66Height = 0; 
         consensus.CSVHeight = 0; 
@@ -233,10 +233,10 @@ public:
         // printf("hashGenesisBlock = %s\n", consensus.hashGenesisBlock.ToString().c_str());
         // printf("hashMerkleRoot = %s\n\n", genesis.hashMerkleRoot.ToString().c_str());
 
-        genesis = CreateGenesisBlock(1749267919, 485912397, 0x1d00ffff, 1, 50 * COIN);
+        genesis = CreateGenesisBlock(1750097736, 2423956811, 0x1d00ffff, 1, 50 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256{"00000000003b06607a95c05c305c0d1e566ca7c446bcbab0fdae923e72472f4a"});
-        assert(genesis.hashMerkleRoot == uint256{"18b7acd29a9cfebb9591995ff7858a91b2d1a0216002fedf2728e389a678c747"});
+        assert(consensus.hashGenesisBlock == uint256{"0000000034e273438482c41f148e67d4a0f9494b44cd88c2ec5b57d4b1fd06ac"});
+        assert(genesis.hashMerkleRoot == uint256{"99963e155b129514a4c6361543693255d247e540c995b0925c089e22cd642be4"});
 
         // Note that of those which support the service bits prefix, most only support a subset of
         // possible options.
