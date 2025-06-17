@@ -25,10 +25,13 @@
 #include <util/moneystr.h>
 #include <util/signalinterrupt.h>
 #include <util/time.h>
+#include <util/threadnames.h>
 #include <validation.h>
 
 #include <algorithm>
 #include <utility>
+#include <chrono>
+#include <thread>
 
 namespace node {
 
@@ -579,4 +582,180 @@ std::optional<BlockRef> WaitTipChanged(ChainstateManager& chainman, KernelNotifi
     // avoid deadlocks.
     return GetTip(chainman);
 }
+
+// ============================================================================
+// NativeMiner Implementation
+// ============================================================================
+
+NativeMiner::NativeMiner(ChainstateManager& chainman, CTxMemPool* mempool, const CScript& coinbase_script, int num_threads)
+    : m_chainman(chainman), m_mempool(mempool), m_coinbase_script(coinbase_script), m_num_threads(num_threads)
+{
+    LogPrintf("NativeMiner: Initialized with %d threads\n", m_num_threads);
+}
+
+NativeMiner::~NativeMiner()
+{
+    StopMining();
+}
+
+bool NativeMiner::StartMining()
+{
+    if (m_mining.load()) {
+        LogPrintf("NativeMiner: Already mining\n");
+        return false;
+    }
+    
+    if (m_coinbase_script.empty()) {
+        LogPrintf("NativeMiner: No coinbase script set\n");
+        return false;
+    }
+    
+    LogPrintf("NativeMiner: Starting mining with %d threads\n", m_num_threads);
+    
+    m_mining.store(true);
+    m_hashes_done.store(0);
+    m_blocks_found.store(0);
+    m_hashrate.store(0.0);
+    
+    // Start mining threads
+    for (int i = 0; i < m_num_threads; ++i) {
+        m_mining_threads.emplace_back(&NativeMiner::MiningThread, this, i);
+    }
+    
+    return true;
+}
+
+void NativeMiner::StopMining()
+{
+    if (!m_mining.load()) {
+        return;
+    }
+    
+    LogPrintf("NativeMiner: Stopping mining\n");
+    m_mining.store(false);
+    
+    // Wait for all threads to finish
+    for (auto& thread : m_mining_threads) {
+        if (thread.joinable()) {
+            thread.join();
+        }
+    }
+    
+    m_mining_threads.clear();
+    LogPrintf("NativeMiner: Mining stopped. Total hashes: %lu, Blocks found: %lu\n", 
+              m_hashes_done.load(), m_blocks_found.load());
+}
+
+void NativeMiner::SetNumThreads(int num_threads)
+{
+    if (m_mining.load()) {
+        LogPrintf("NativeMiner: Cannot change thread count while mining\n");
+        return;
+    }
+    
+    m_num_threads = std::max(1, num_threads);
+    LogPrintf("NativeMiner: Set thread count to %d\n", m_num_threads);
+}
+
+void NativeMiner::MiningThread(int thread_id)
+{
+    util::ThreadRename(strprintf("gotham-miner-%d", thread_id));
+    LogPrintf("NativeMiner: Thread %d started\n", thread_id);
+    
+    const auto start_time = std::chrono::steady_clock::now();
+    uint64_t local_hashes = 0;
+    uint32_t nonce_start = thread_id * 0x10000000; // Spread nonce ranges across threads
+    
+    while (m_mining.load() && !m_chainman.m_interrupt) {
+        try {
+            // Create new block template
+            BlockAssembler::Options options;
+            options.coinbase_output_script = m_coinbase_script;
+            
+            BlockAssembler assembler(m_chainman.ActiveChainstate(), m_mempool, options);
+            std::unique_ptr<CBlockTemplate> block_template = assembler.CreateNewBlock();
+            
+            if (!block_template) {
+                LogPrintf("NativeMiner: Thread %d failed to create block template\n", thread_id);
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                continue;
+            }
+            
+            CBlock* pblock = &block_template->block;
+            
+            // Update block time
+            {
+                LOCK(cs_main);
+                CBlockIndex* pindexPrev = m_chainman.ActiveChain().Tip();
+                if (pindexPrev) {
+                    UpdateTime(pblock, m_chainman.GetParams().GetConsensus(), pindexPrev);
+                    pblock->nBits = GetNextWorkRequired(pindexPrev, pblock, m_chainman.GetParams().GetConsensus());
+                }
+            }
+            
+            // Calculate merkle root
+            pblock->hashMerkleRoot = BlockMerkleRoot(*pblock);
+            
+            // Mining loop for this block template
+            const uint32_t nonce_end = nonce_start + 0x10000000;
+            pblock->nNonce = nonce_start;
+            
+            while (m_mining.load() && !m_chainman.m_interrupt && pblock->nNonce < nonce_end) {
+                // Calculate hash
+                uint256 hash = pblock->GetHash();
+                local_hashes++;
+                
+                // Check if we found a valid block
+                if (CheckProofOfWork(hash, pblock->nBits, m_chainman.GetConsensus())) {
+                    LogPrintf("NativeMiner: Thread %d found block! Hash: %s, Nonce: %u\n", 
+                              thread_id, hash.ToString(), pblock->nNonce);
+                    
+                    // Submit the block
+                    std::shared_ptr<const CBlock> shared_block = std::make_shared<const CBlock>(*pblock);
+                    bool accepted = m_chainman.ProcessNewBlock(shared_block, /*force_processing=*/true, /*min_pow_checked=*/true, nullptr);
+                    
+                    if (accepted) {
+                        m_blocks_found.fetch_add(1);
+                        LogPrintf("NativeMiner: Block accepted by network!\n");
+                    } else {
+                        LogPrintf("NativeMiner: Block rejected by network\n");
+                    }
+                    
+                    break; // Get new block template
+                }
+                
+                pblock->nNonce++;
+                
+                // Update statistics every 100k hashes
+                if (local_hashes % 100000 == 0) {
+                    m_hashes_done.fetch_add(100000);
+                    
+                    // Update hashrate calculation
+                    auto current_time = std::chrono::steady_clock::now();
+                    auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(current_time - start_time).count();
+                    if (elapsed > 0) {
+                        double hashrate = static_cast<double>(m_hashes_done.load()) / elapsed;
+                        m_hashrate.store(hashrate);
+                    }
+                    
+                    local_hashes = 0;
+                }
+            }
+            
+            // If we exhausted the nonce range, get a new block template
+            if (pblock->nNonce >= nonce_end) {
+                nonce_start = (nonce_start + 0x10000000) % 0x80000000; // Wrap around
+            }
+            
+        } catch (const std::exception& e) {
+            LogPrintf("NativeMiner: Thread %d exception: %s\n", thread_id, e.what());
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
+    }
+    
+    // Final hash count update
+    m_hashes_done.fetch_add(local_hashes);
+    LogPrintf("NativeMiner: Thread %d stopped\n", thread_id);
+}
+
 } // namespace node

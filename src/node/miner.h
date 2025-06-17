@@ -16,6 +16,9 @@
 #include <memory>
 #include <optional>
 #include <stdint.h>
+#include <thread>
+#include <atomic>
+#include <vector>
 
 #include <boost/multi_index/identity.hpp>
 #include <boost/multi_index/indexed_by.hpp>
@@ -255,6 +258,55 @@ std::optional<BlockRef> GetTip(ChainstateManager& chainman);
 /* Waits for the connected tip to change until timeout has elapsed. During node initialization, this will wait until the tip is connected (regardless of `timeout`).
  * Returns the current tip, or nullopt if the node is shutting down. */
 std::optional<BlockRef> WaitTipChanged(ChainstateManager& chainman, KernelNotifications& kernel_notifications, const uint256& current_tip, MillisecondsDouble& timeout);
+
+/**
+ * Native multithreaded CPU miner for Gotham Core
+ */
+class NativeMiner
+{
+private:
+    std::atomic<bool> m_mining{false};
+    std::vector<std::thread> m_mining_threads;
+    std::atomic<uint64_t> m_hashes_done{0};
+    std::atomic<uint64_t> m_blocks_found{0};
+    std::atomic<double> m_hashrate{0.0};
+    
+    ChainstateManager& m_chainman;
+    CTxMemPool* m_mempool;
+    CScript m_coinbase_script;
+    int m_num_threads;
+    
+    // Mining thread function
+    void MiningThread(int thread_id);
+    
+    // Update hashrate statistics
+    void UpdateHashrate();
+
+public:
+    explicit NativeMiner(ChainstateManager& chainman, CTxMemPool* mempool, const CScript& coinbase_script, int num_threads = 1);
+    ~NativeMiner();
+    
+    // Start mining with specified number of threads
+    bool StartMining();
+    
+    // Stop mining
+    void StopMining();
+    
+    // Check if currently mining
+    bool IsMining() const { return m_mining.load(); }
+    
+    // Get mining statistics
+    uint64_t GetHashesDone() const { return m_hashes_done.load(); }
+    uint64_t GetBlocksFound() const { return m_blocks_found.load(); }
+    double GetHashrate() const { return m_hashrate.load(); }
+    
+    // Set coinbase script (mining address)
+    void SetCoinbaseScript(const CScript& script) { m_coinbase_script = script; }
+    
+    // Set number of mining threads
+    void SetNumThreads(int num_threads);
+};
+
 } // namespace node
 
 #endif // GOTHAM_NODE_MINER_H

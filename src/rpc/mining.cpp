@@ -18,8 +18,11 @@
 #include <deploymentinfo.h>
 #include <deploymentstatus.h>
 #include <interfaces/mining.h>
+#include <key.h>
 #include <key_io.h>
 #include <net.h>
+#include <outputtype.h>
+#include <pubkey.h>
 #include <node/context.h>
 #include <node/miner.h>
 #include <node/warnings.h>
@@ -45,6 +48,12 @@
 
 #include <memory>
 #include <stdint.h>
+#include <thread>
+
+#ifdef ENABLE_WALLET
+#include <wallet/rpc/util.h>
+#include <wallet/wallet.h>
+#endif
 
 using interfaces::BlockRef;
 using interfaces::BlockTemplate;
@@ -1137,6 +1146,136 @@ static RPCHelpMan submitheader()
     };
 }
 
+// Global native miner instance
+static std::unique_ptr<node::NativeMiner> g_native_miner;
+
+static RPCHelpMan startmining()
+{
+    return RPCHelpMan{"startmining",
+        "Start native CPU mining using all available threads to a specified address.",
+        {
+            {"address", RPCArg::Type::STR, RPCArg::Optional::NO, "The address to send the newly mined gotham to."},
+        },
+        RPCResult{
+            RPCResult::Type::OBJ, "", "",
+            {
+                {RPCResult::Type::BOOL, "started", "true if mining started successfully"},
+                {RPCResult::Type::STR, "address", "the mining address being used"},
+                {RPCResult::Type::NUM, "threads", "number of mining threads started"},
+            }
+        },
+        RPCExamples{
+            HelpExampleCli("startmining", "\"myaddress\"") +
+            HelpExampleRpc("startmining", "\"myaddress\"")
+        },
+        [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
+{
+    NodeContext& node = EnsureAnyNodeContext(request.context);
+    ChainstateManager& chainman = EnsureChainman(node);
+    
+    // Get number of available CPU threads
+    const int num_threads = std::thread::hardware_concurrency();
+    if (num_threads == 0) {
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "Could not determine number of CPU threads");
+    }
+    
+    // Get the mining address from the parameter
+    const std::string address_str = self.Arg<std::string>("address");
+    CTxDestination destination = DecodeDestination(address_str);
+    if (!IsValidDestination(destination)) {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Error: Invalid address");
+    }
+    
+    CScript coinbase_script = GetScriptForDestination(destination);
+    
+    // Stop existing miner if running
+    if (g_native_miner && g_native_miner->IsMining()) {
+        g_native_miner->StopMining();
+    }
+    
+    // Create new miner instance
+    g_native_miner = std::make_unique<node::NativeMiner>(chainman, node.mempool.get(), coinbase_script, num_threads);
+    
+    bool success = g_native_miner->StartMining();
+    if (!success) {
+        throw JSONRPCError(RPC_INTERNAL_ERROR, "Failed to start mining");
+    }
+    
+    UniValue result(UniValue::VOBJ);
+    result.pushKV("started", true);
+    result.pushKV("address", address_str);
+    result.pushKV("threads", num_threads);
+    return result;
+},
+    };
+}
+
+static RPCHelpMan stopmining()
+{
+    return RPCHelpMan{"stopmining",
+        "Stop native CPU mining.",
+        {},
+        RPCResult{
+            RPCResult::Type::BOOL, "", "true if mining stopped successfully"},
+        RPCExamples{
+            HelpExampleCli("stopmining", "") +
+            HelpExampleRpc("stopmining", "")
+        },
+        [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
+{
+    if (!g_native_miner) {
+        throw JSONRPCError(RPC_MISC_ERROR, "Native miner not initialized");
+    }
+    
+    if (!g_native_miner->IsMining()) {
+        throw JSONRPCError(RPC_MISC_ERROR, "Mining is not currently active");
+    }
+    
+    g_native_miner->StopMining();
+    return true;
+},
+    };
+}
+
+static RPCHelpMan getminingstat()
+{
+    return RPCHelpMan{"getminingstat",
+        "Get native mining statistics.",
+        {},
+        RPCResult{
+            RPCResult::Type::OBJ, "", "",
+            {
+                {RPCResult::Type::BOOL, "mining", "Whether mining is currently active"},
+                {RPCResult::Type::NUM, "hashesdone", "Total number of hashes computed"},
+                {RPCResult::Type::NUM, "blocksfound", "Number of blocks found"},
+                {RPCResult::Type::NUM, "hashrate", "Current hashrate (hashes per second)"},
+            }
+        },
+        RPCExamples{
+            HelpExampleCli("getminingstat", "") +
+            HelpExampleRpc("getminingstat", "")
+        },
+        [&](const RPCHelpMan& self, const JSONRPCRequest& request) -> UniValue
+{
+    UniValue result(UniValue::VOBJ);
+    
+    if (!g_native_miner) {
+        result.pushKV("mining", false);
+        result.pushKV("hashesdone", 0);
+        result.pushKV("blocksfound", 0);
+        result.pushKV("hashrate", 0.0);
+    } else {
+        result.pushKV("mining", g_native_miner->IsMining());
+        result.pushKV("hashesdone", (int64_t)g_native_miner->GetHashesDone());
+        result.pushKV("blocksfound", (int64_t)g_native_miner->GetBlocksFound());
+        result.pushKV("hashrate", g_native_miner->GetHashrate());
+    }
+    
+    return result;
+},
+    };
+}
+
 void RegisterMiningRPCCommands(CRPCTable& t)
 {
     static const CRPCCommand commands[]{
@@ -1147,6 +1286,9 @@ void RegisterMiningRPCCommands(CRPCTable& t)
         {"mining", &getblocktemplate},
         {"mining", &submitblock},
         {"mining", &submitheader},
+        {"mining", &startmining},
+        {"mining", &stopmining},
+        {"mining", &getminingstat},
 
         {"hidden", &generatetoaddress},
         {"hidden", &generatetodescriptor},

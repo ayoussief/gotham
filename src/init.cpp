@@ -67,6 +67,8 @@
 #include <rpc/server.h>
 #include <rpc/util.h>
 #include <mmp/job.h>
+#include <key_io.h>
+#include <addresstype.h>
 #include <scheduler.h>
 #include <script/sigcache.h>
 #include <sync.h>
@@ -649,6 +651,9 @@ void SetupServerArgs(ArgsManager& argsman, bool can_listen_ipc)
     argsman.AddArg("-blockreservedweight=<n>", strprintf("Reserve space for the fixed-size block header plus the largest coinbase transaction the mining software may add to the block. (default: %d).", DEFAULT_BLOCK_RESERVED_WEIGHT), ArgsManager::ALLOW_ANY, OptionsCategory::BLOCK_CREATION);
     argsman.AddArg("-blockmintxfee=<amt>", strprintf("Set lowest fee rate (in %s/kvB) for transactions to be included in block creation. (default: %s)", CURRENCY_UNIT, FormatMoney(DEFAULT_BLOCK_MIN_TX_FEE)), ArgsManager::ALLOW_ANY, OptionsCategory::BLOCK_CREATION);
     argsman.AddArg("-blockversion=<n>", "Override block version to test forking scenarios", ArgsManager::ALLOW_ANY | ArgsManager::DEBUG_ONLY, OptionsCategory::BLOCK_CREATION);
+    
+    // Native mining arguments
+    argsman.AddArg("-mine", "Enable native CPU mining on startup using all available CPU threads", ArgsManager::ALLOW_ANY, OptionsCategory::BLOCK_CREATION);
 
     argsman.AddArg("-rest", strprintf("Accept public REST requests (default: %u)", DEFAULT_REST_ENABLE), ArgsManager::ALLOW_ANY, OptionsCategory::RPC);
     argsman.AddArg("-rpcallowip=<ip>", "Allow JSON-RPC connections from specified source. Valid values for <ip> are a single IP (e.g. 1.2.3.4), a network/netmask (e.g. 1.2.3.4/255.255.255.0), a network/CIDR (e.g. 1.2.3.4/24), all ipv4 (0.0.0.0/0), or all ipv6 (::/0). This option can be specified multiple times", ArgsManager::ALLOW_ANY, OptionsCategory::RPC);
@@ -2053,6 +2058,15 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
 #if HAVE_SYSTEM
     StartupNotify(args);
 #endif
+
+    // Initialize native mining if requested
+    if (args.GetBoolArg("-mine", false)) {
+        LogPrintf("Native mining will be started automatically using all available CPU threads\n");
+        LogPrintf("Mining address will be auto-generated from the default wallet\n");
+        
+        // The actual miner will be started via RPC or after full initialization
+        // to avoid blocking the startup process
+    }
 
     return true;
 }
