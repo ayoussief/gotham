@@ -254,6 +254,8 @@ std::vector<LayoutItem> CommonPatterns::CreateStatusPanel(
         status_item.constraints.preferred_height = UIStyleGuide::FontSize::CAPTION;
         status_item.margin = Margin(UIStyleGuide::Spacing::XS, UIStyleGuide::Spacing::MD, 
                                    UIStyleGuide::Spacing::XS, UIStyleGuide::Spacing::MD);
+        // Note: status_pair contains (label, value) data for the status item
+        (void)status_pair; // Suppress unused variable warning
         panel_items.push_back(status_item);
     }
     

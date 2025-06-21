@@ -645,6 +645,7 @@ void WalletScreen::OnBackupClicked()
     // Implement wallet backup functionality
     if (auto* wallet = m_gui.GetWalletManager()) {
         // wallet->BackupWallet();
+        (void)wallet; // Suppress unused variable warning
         std::cout << "Wallet backup initiated" << std::endl;
     }
 }
@@ -655,6 +656,7 @@ void WalletScreen::OnRestoreClicked()
     // Implement wallet restore functionality
     if (auto* wallet = m_gui.GetWalletManager()) {
         // wallet->RestoreWallet();
+        (void)wallet; // Suppress unused variable warning
         std::cout << "Wallet restore initiated" << std::endl;
     }
 }

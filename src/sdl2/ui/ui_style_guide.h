@@ -177,6 +177,15 @@ namespace UIStyleGuide {
             Border::WIDTH_THIN
         };
 
+        inline const ButtonStyle DANGER = {
+            Colors::ERROR,
+            Color(240, 73, 89, 255),
+            Color(200, 33, 49, 255),
+            Color(255, 255, 255, 255),
+            Border::RADIUS,
+            Border::WIDTH_THIN
+        };
+
         // Panel Styles
         struct PanelStyle {
             Color background_color;
@@ -223,6 +232,13 @@ namespace UIStyleGuide {
         inline const PanelStyle MODAL_PANEL = {
             Colors::SURFACE_DARK,
             Colors::GOTHAM_GOLD,
+            Border::WIDTH_MEDIUM,
+            Colors::ALPHA_HIGH
+        };
+
+        inline const PanelStyle WARNING = {
+            Colors::WARNING,
+            Color(255, 213, 47, 255),
             Border::WIDTH_MEDIUM,
             Colors::ALPHA_HIGH
         };
@@ -294,13 +310,13 @@ namespace UIStyleGuide {
             DESKTOP
         };
         
-        static ScreenSize GetScreenSize(int width) {
+        [[maybe_unused]] static ScreenSize GetScreenSize(int width) {
             if (width < Breakpoints::MOBILE) return ScreenSize::MOBILE;
             if (width < Breakpoints::TABLET) return ScreenSize::TABLET;
             return ScreenSize::DESKTOP;
         }
         
-        static int GetSidebarWidth(ScreenSize size) {
+        [[maybe_unused]] static int GetSidebarWidth(ScreenSize size) {
             switch (size) {
                 case ScreenSize::MOBILE: return 0;  // Hidden on mobile
                 case ScreenSize::TABLET: return 150;
@@ -309,7 +325,7 @@ namespace UIStyleGuide {
             return Dimensions::SIDEBAR_WIDTH;
         }
         
-        static int GetSpacing(ScreenSize size) {
+        [[maybe_unused]] static int GetSpacing(ScreenSize size) {
             switch (size) {
                 case ScreenSize::MOBILE: return Spacing::SM;
                 case ScreenSize::TABLET: return Spacing::MD;

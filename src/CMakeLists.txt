@@ -453,6 +453,10 @@ if(BUILD_GUI)
   add_subdirectory(qt)
 endif()
 
+if(BUILD_SDL2_GUI)
+  add_subdirectory(sdl2)
+endif()
+
 
 if(BUILD_KERNEL_LIB)
   add_subdirectory(kernel)

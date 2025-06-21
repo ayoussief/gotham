@@ -26,8 +26,9 @@
 
 #include <iostream>
 
-GothamCityGUI::GothamCityGUI(WindowManager& window_manager, interfaces::Node* node)
+GothamCityGUI::GothamCityGUI(WindowManager& window_manager, GothamCityApp& app, interfaces::Node* node)
     : m_window_manager(window_manager)
+    , m_app(app)
     , m_node(node)
 {
 }

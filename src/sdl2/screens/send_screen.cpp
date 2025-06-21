@@ -793,6 +793,7 @@ void SendScreen::OnSendClicked()
     // In real implementation, this would create and broadcast the transaction
     if (auto* wallet = m_gui.GetWalletManager()) {
         // wallet->SendTransaction(recipient, amount, fee, description);
+        (void)wallet; // Suppress unused variable warning
         std::cout << "Transaction sent successfully!" << std::endl;
         
         // Clear form and navigate back

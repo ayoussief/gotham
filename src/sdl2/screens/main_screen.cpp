@@ -4,6 +4,7 @@
 
 #include "main_screen.h"
 #include "../gotham_city_gui.h"
+#include "../gotham_city_app.h"
 #include "../utils/theme.h"
 #include "../utils/font_manager.h"
 #include "../ui/ui_style_guide.h"
@@ -59,6 +60,7 @@ void MainScreen::CreateContentElements()
     );
     
     CreateQuickActionsPanel();
+    CreateDaemonControlPanel();
     CreateWalletStatusPanel();
     CreateRecentActivityPanel();
 }
@@ -88,6 +90,9 @@ void MainScreen::CreateContentPanel()
         // Add child panels
         if (m_quick_actions_panel) {
             m_content_panel->AddPanel(std::shared_ptr<Panel>(m_quick_actions_panel.get(), [](Panel*){}));
+        }
+        if (m_daemon_control_panel) {
+            m_content_panel->AddPanel(std::shared_ptr<Panel>(m_daemon_control_panel.get(), [](Panel*){}));
         }
         if (m_wallet_status_panel) {
             m_content_panel->AddPanel(std::shared_ptr<Panel>(m_wallet_status_panel.get(), [](Panel*){}));
@@ -141,6 +146,50 @@ void MainScreen::CreateQuickActionsPanel()
         }
         if (m_transactions_quick_button) {
             m_quick_actions_panel->AddButton(std::shared_ptr<Button>(m_transactions_quick_button.get(), [](Button*){}));
+        }
+    }
+}
+
+void MainScreen::CreateDaemonControlPanel()
+{
+    if (!m_ui_factory) return;
+    
+    // Create daemon control panel - size will be set by layout when content area bounds are known
+    m_daemon_control_panel = m_ui_factory->CreatePanel(
+        Rect(0, 0, 100, 120), // Minimal placeholder size
+        PanelStyle::INFO
+    );
+    
+    // Create daemon status label
+    m_daemon_status_label = m_ui_factory->CreateLabel(
+        "Daemon: Stopped", 
+        Point(0, 0), 
+        LabelStyle::BODY
+    );
+    
+    // Create daemon control buttons
+    m_start_daemon_button = m_ui_factory->CreateButton(
+        "🚀 Start Daemon", 
+        Rect(0, 0, 140, 44), 
+        ButtonStyle::SUCCESS
+    );
+    
+    m_stop_daemon_button = m_ui_factory->CreateButton(
+        "🛑 Stop Daemon", 
+        Rect(0, 0, 140, 44), 
+        ButtonStyle::ERROR
+    );
+    
+    // Add elements to the daemon control panel
+    if (m_daemon_control_panel) {
+        if (m_daemon_status_label) {
+            m_daemon_control_panel->AddLabel(std::shared_ptr<Label>(m_daemon_status_label.get(), [](Label*){}));
+        }
+        if (m_start_daemon_button) {
+            m_daemon_control_panel->AddButton(std::shared_ptr<Button>(m_start_daemon_button.get(), [](Button*){}));
+        }
+        if (m_stop_daemon_button) {
+            m_daemon_control_panel->AddButton(std::shared_ptr<Button>(m_stop_daemon_button.get(), [](Button*){}));
         }
     }
 }
@@ -242,6 +291,19 @@ void MainScreen::SetupButtonCallbacks()
             OnTransactionsQuickClicked();
         });
     }
+    
+    // Setup daemon control button callbacks
+    if (m_start_daemon_button) {
+        m_start_daemon_button->SetOnClick([this]() {
+            OnStartDaemonClicked();
+        });
+    }
+    
+    if (m_stop_daemon_button) {
+        m_stop_daemon_button->SetOnClick([this]() {
+            OnStopDaemonClicked();
+        });
+    }
 }
 
 void MainScreen::HandleEvent(const SDL_Event& event)
@@ -255,6 +317,10 @@ void MainScreen::HandleEvent(const SDL_Event& event)
         if (m_send_quick_button) m_send_quick_button->HandleEvent(event);
         if (m_receive_quick_button) m_receive_quick_button->HandleEvent(event);
         if (m_transactions_quick_button) m_transactions_quick_button->HandleEvent(event);
+        
+        // Handle daemon control button events
+        if (m_start_daemon_button) m_start_daemon_button->HandleEvent(event);
+        if (m_stop_daemon_button) m_stop_daemon_button->HandleEvent(event);
     }
 }
 
@@ -272,11 +338,16 @@ void MainScreen::Update(float delta_time)
     if (m_receive_quick_button) m_receive_quick_button->Update(delta_time);
     if (m_transactions_quick_button) m_transactions_quick_button->Update(delta_time);
     
+    // Update daemon control buttons
+    if (m_start_daemon_button) m_start_daemon_button->Update(delta_time);
+    if (m_stop_daemon_button) m_stop_daemon_button->Update(delta_time);
+    
     // Update wallet and network info periodically
     static float last_update = 0.0f;
     if (m_elapsed_time - last_update > 2.0f) {
         UpdateWalletInfo();
         UpdateNetworkInfo();
+        UpdateDaemonStatus(); // Update daemon status as well
         last_update = m_elapsed_time;
     }
 }
@@ -719,6 +790,35 @@ void MainScreen::PositionElementsDirectly()
         current_y += panel_height + UIStyleGuide::Spacing::LG; // Panel height + spacing
     }
     
+    // Position daemon control panel
+    if (m_daemon_control_panel) {
+        int panel_height = UIStyleGuide::FontSize::BODY + UIStyleGuide::Accessibility::MIN_TOUCH_TARGET + (3 * UIStyleGuide::Spacing::MD);
+        m_daemon_control_panel->SetBounds(Rect(element_x, current_y, element_width, panel_height));
+        
+        // Position daemon status label and buttons within the panel
+        int label_y = current_y + UIStyleGuide::Spacing::MD;
+        int label_x = element_x + UIStyleGuide::Spacing::MD;
+        
+        if (m_daemon_status_label) {
+            m_daemon_status_label->SetPosition(Point(label_x, label_y));
+        }
+        
+        // Position daemon control buttons
+        int button_y = current_y + UIStyleGuide::FontSize::BODY + (2 * UIStyleGuide::Spacing::MD);
+        int button_width = 140;
+        int button_spacing = UIStyleGuide::Spacing::MD;
+        int button_start_x = element_x + UIStyleGuide::Spacing::MD;
+        
+        if (m_start_daemon_button) {
+            m_start_daemon_button->SetBounds(Rect(button_start_x, button_y, button_width, UIStyleGuide::Accessibility::MIN_TOUCH_TARGET));
+        }
+        if (m_stop_daemon_button) {
+            m_stop_daemon_button->SetBounds(Rect(button_start_x + button_width + button_spacing, button_y, button_width, UIStyleGuide::Accessibility::MIN_TOUCH_TARGET));
+        }
+        
+        current_y += panel_height + UIStyleGuide::Spacing::LG; // Panel height + spacing
+    }
+    
     // Position wallet status panel
     if (m_wallet_status_panel) {
         int panel_height = (3 * UIStyleGuide::FontSize::CAPTION) + (4 * UIStyleGuide::Spacing::MD);
@@ -851,7 +951,7 @@ void MainScreen::ApplyResponsiveLayout()
     }
     
     // Adjust spacing based on screen size
-    int responsive_spacing = UIStyleGuide::Responsive::GetSpacing(screen_size);
+    [[maybe_unused]] int responsive_spacing = UIStyleGuide::Responsive::GetSpacing(screen_size);
     
     // Applied responsive layout for current screen size
 }
@@ -921,5 +1021,52 @@ void MainScreen::ValidateUIElements()
         std::cout << "UI validation passed successfully" << std::endl;
     } else {
         std::cerr << "UI validation failed - check errors above" << std::endl;
+    }
+}
+
+// Daemon control callback implementations
+void MainScreen::OnStartDaemonClicked()
+{
+    std::cout << "Start daemon button clicked" << std::endl;
+    
+    // Get the app instance and start the daemon using existing Core functionality
+    auto& app = m_gui.GetApp();
+    if (app.StartDaemon()) {
+        std::cout << "✅ Node started successfully" << std::endl;
+        UpdateDaemonStatus();
+    } else {
+        std::cout << "❌ Failed to start node" << std::endl;
+    }
+}
+
+void MainScreen::OnStopDaemonClicked()
+{
+    std::cout << "Stop daemon button clicked" << std::endl;
+    
+    // Get the app instance and stop the daemon using existing Core functionality
+    auto& app = m_gui.GetApp();
+    app.StopDaemon();
+    std::cout << "🛑 Node stop requested" << std::endl;
+    UpdateDaemonStatus();
+}
+
+void MainScreen::UpdateDaemonStatus()
+{
+    if (!m_daemon_status_label) return;
+    
+    // Get status from the app using existing Core functionality
+    auto& app = m_gui.GetApp();
+    std::string status = app.GetDaemonStatus();
+    
+    // Update the status label
+    m_daemon_status_label->SetText(status);
+    
+    // Update button states based on daemon status
+    bool is_running = app.IsDaemonRunning();
+    if (m_start_daemon_button) {
+        m_start_daemon_button->SetEnabled(!is_running);
+    }
+    if (m_stop_daemon_button) {
+        m_stop_daemon_button->SetEnabled(is_running);
     }
 }

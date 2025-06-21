@@ -13,8 +13,16 @@
 #include <common/system.h>
 #include <common/init.h>
 #include <common/args.h>
+#include <interfaces/init.h>
+#include <init.h>
+#include <util/threadnames.h>
+#include <chainparams.h>
+#include <logging.h>
+#include <netbase.h>
 
 #include <iostream>
+#include <chrono>
+#include <thread>
 
 GothamCityApp::GothamCityApp() = default;
 
@@ -31,15 +39,10 @@ bool GothamCityApp::Initialize(int argc, char* argv[])
 
     std::cout << "🦇 Initializing Gotham City Application..." << std::endl;
 
-    // Parse command line arguments
-    m_args = std::make_unique<ArgsManager>();
-    SetupHelpOptions(*m_args);
-    
-    std::string error;
-    if (!m_args->ParseParameters(argc, argv, error)) {
-        std::cerr << "Error parsing arguments: " << error << std::endl;
-        return false;
-    }
+    // Chain parameters and argument parsing are now handled in main.cpp
+    // Store argc/argv for later use
+    m_argc = argc;
+    m_argv = argv;
 
     // Initialize SDL
     if (!InitializeSDL()) {
@@ -53,20 +56,7 @@ bool GothamCityApp::Initialize(int argc, char* argv[])
         return false;
     }
 
-    // Initialize Gotham Core
-    if (!InitGotham(*m_args)) {
-        std::cerr << "Failed to initialize Gotham Core" << std::endl;
-        return false;
-    }
-
-    // Create node
-    static interfaces::NodeContext node_context;
-    m_node = interfaces::MakeNode(node_context);
-    
-    if (!m_node->start()) {
-        std::cerr << "Failed to start node" << std::endl;
-        return false;
-    }
+    std::cout << "✅ SDL2 initialized successfully" << std::endl;
 
     // Initialize GUI
     if (!InitializeGUI()) {
@@ -123,14 +113,19 @@ void GothamCityApp::Shutdown()
     // Shutdown GUI
     m_gui.reset();
 
-    // Stop node
+    // Stop daemon if running
+    if (m_daemon_running.load()) {
+        StopDaemon();
+    }
+
+    // Shutdown node
     if (m_node) {
-        m_node->stop();
+        m_node->appShutdown();
         m_node.reset();
     }
 
-    // Shutdown Gotham Core
-    ShutdownGotham();
+    // Clean up init interface
+    m_init.reset();
 
     // Shutdown window manager
     m_window_manager.reset();
@@ -174,9 +169,9 @@ bool GothamCityApp::CreateWindow()
     std::cout << "🪟 Creating window..." << std::endl;
 
     // Get window dimensions from arguments
-    int width = static_cast<int>(m_args->GetIntArg("width", 1200));
-    int height = static_cast<int>(m_args->GetIntArg("height", 800));
-    bool fullscreen = m_args->GetBoolArg("fullscreen", false);
+    int width = static_cast<int>(gArgs.GetIntArg("-width", 1200));
+    int height = static_cast<int>(gArgs.GetIntArg("-height", 800));
+    bool fullscreen = gArgs.GetBoolArg("-fullscreen", false);
 
     m_window_manager = std::make_unique<WindowManager>();
     
@@ -193,7 +188,7 @@ bool GothamCityApp::InitializeGUI()
 {
     std::cout << "🎨 Initializing GUI..." << std::endl;
 
-    m_gui = std::make_unique<GothamCityGUI>(*m_window_manager, m_node.get());
+    m_gui = std::make_unique<GothamCityGUI>(*m_window_manager, *this, m_node.get());
     
     if (!m_gui->Initialize()) {
         std::cerr << "Failed to initialize GUI" << std::endl;
@@ -250,4 +245,115 @@ void GothamCityApp::CleanupSDL()
     SDL_Quit();
 
     std::cout << "✅ SDL cleanup complete" << std::endl;
+}
+
+// Node control methods - using existing Gotham Core functionality
+bool GothamCityApp::StartDaemon()
+{
+    if (!m_node) {
+        std::cerr << "❌ Node interface not available" << std::endl;
+        return false;
+    }
+
+    if (m_daemon_running.load()) {
+        std::cout << "⚠️ Node is already running" << std::endl;
+        return true;
+    }
+
+    std::cout << "🚀 Starting Gotham node..." << std::endl;
+
+    try {
+        // Use the existing node interface methods (following Qt pattern)
+        if (!m_node->baseInitialize()) {
+            std::cerr << "❌ Failed to initialize node base" << std::endl;
+            return false;
+        }
+
+        // Start the main application initialization
+        interfaces::BlockAndHeaderTipInfo tip_info;
+        if (!m_node->appInitMain(&tip_info)) {
+            std::cerr << "❌ Failed to start node main application" << std::endl;
+            return false;
+        }
+
+        m_daemon_running.store(true);
+        std::cout << "✅ Gotham node started successfully" << std::endl;
+        std::cout << "📊 Block height: " << tip_info.block_height << std::endl;
+        std::cout << "🔗 Header height: " << tip_info.header_height << std::endl;
+        
+        return true;
+    }
+    catch (const std::exception& e) {
+        std::cerr << "❌ Exception starting node: " << e.what() << std::endl;
+        return false;
+    }
+}
+
+void GothamCityApp::StopDaemon()
+{
+    if (!m_daemon_running.load()) {
+        std::cout << "⚠️ Node is not running" << std::endl;
+        return;
+    }
+
+    std::cout << "🛑 Stopping Gotham node..." << std::endl;
+
+    if (m_node) {
+        // Use the existing node shutdown method
+        m_node->startShutdown();
+        
+        // Wait for shutdown to complete (following Qt pattern)
+        int timeout = 30; // 30 seconds timeout
+        while (!m_node->shutdownRequested() && timeout > 0) {
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            timeout--;
+        }
+        
+        if (timeout <= 0) {
+            std::cout << "⚠️ Node shutdown timeout" << std::endl;
+        }
+    }
+
+    m_daemon_running.store(false);
+    std::cout << "✅ Gotham node stopped" << std::endl;
+}
+
+bool GothamCityApp::IsDaemonRunning() const
+{
+    return m_daemon_running.load();
+}
+
+std::string GothamCityApp::GetDaemonStatus() const
+{
+    if (!m_node) {
+        return "Node interface not available";
+    }
+
+    if (!m_daemon_running.load()) {
+        return "Node stopped";
+    }
+
+    try {
+        // Use existing node interface methods to get status
+        std::string status = "Node running - ";
+        
+        int block_count = m_node->getNumBlocks();
+        size_t connections = m_node->getNodeCount(ConnectionDirection::Both);
+        bool is_ibd = m_node->isInitialBlockDownload();
+        double sync_progress = m_node->getVerificationProgress();
+        
+        status += "Blocks: " + std::to_string(block_count);
+        status += ", Connections: " + std::to_string(connections);
+        
+        if (is_ibd) {
+            status += ", Syncing: " + std::to_string(static_cast<int>(sync_progress * 100)) + "%";
+        } else {
+            status += ", Synced";
+        }
+        
+        return status;
+    }
+    catch (const std::exception& e) {
+        return "Error getting status: " + std::string(e.what());
+    }
 }

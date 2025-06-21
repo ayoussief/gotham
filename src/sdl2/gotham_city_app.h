@@ -7,9 +7,11 @@
 
 #include <common/args.h>
 #include <interfaces/node.h>
+#include <interfaces/init.h>
 #include <memory>
 #include <atomic>
 #include <string>
+#include <functional>
 
 class GothamCityGUI;
 class WindowManager;
@@ -48,14 +50,47 @@ public:
      */
     bool ShouldExit() const { return m_should_exit; }
 
+    /**
+     * Start the Gotham node (using existing Core functionality)
+     */
+    bool StartDaemon();
+
+    /**
+     * Stop the Gotham node (using existing Core functionality)
+     */
+    void StopDaemon();
+
+    /**
+     * Check if node is running
+     */
+    bool IsDaemonRunning() const;
+
+    /**
+     * Get node status information (using existing Core functionality)
+     */
+    std::string GetDaemonStatus() const;
+
+    /**
+     * Get node interface (for RPC calls, etc.)
+     */
+    interfaces::Node* GetNode() const { return m_node.get(); }
+
 private:
     std::unique_ptr<WindowManager> m_window_manager;
     std::unique_ptr<GothamCityGUI> m_gui;
+    
+    // Real Gotham Core node components
     std::unique_ptr<interfaces::Node> m_node;
+    std::unique_ptr<interfaces::Init> m_init;
     std::unique_ptr<ArgsManager> m_args;
     
     std::atomic<bool> m_should_exit{false};
+    std::atomic<bool> m_daemon_running{false};
     bool m_initialized{false};
+    
+    // Store command line arguments
+    int m_argc{0};
+    char** m_argv{nullptr};
 
     bool InitializeSDL();
     bool CreateWindow();

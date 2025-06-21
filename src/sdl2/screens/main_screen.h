@@ -53,6 +53,12 @@ private:
     std::unique_ptr<Button> m_receive_quick_button;
     std::unique_ptr<Button> m_transactions_quick_button;
     
+    // Daemon control panel
+    std::unique_ptr<Panel> m_daemon_control_panel;
+    std::unique_ptr<Label> m_daemon_status_label;
+    std::unique_ptr<Button> m_start_daemon_button;
+    std::unique_ptr<Button> m_stop_daemon_button;
+    
     // Status display panel (content-specific, not global status bar)
     std::unique_ptr<Panel> m_wallet_status_panel;
     std::unique_ptr<Label> m_network_status_label;
@@ -77,6 +83,7 @@ private:
     void CreateContentElements();
     void CreateContentPanel();
     void CreateQuickActionsPanel();
+    void CreateDaemonControlPanel();
     void CreateWalletStatusPanel();
     void CreateRecentActivityPanel();
     void UpdateWalletInfo();
@@ -88,6 +95,7 @@ private:
     void PositionElementsDirectly();
     void ApplyContentLayout();
     void ApplyQuickActionsLayout(const Rect& panel_bounds);
+    void ApplyDaemonControlLayout(const Rect& panel_bounds);
     void ApplyStatusPanelLayout(const Rect& panel_bounds);
     void ApplyRecentActivityLayout(const Rect& panel_bounds);
     void ApplyResponsiveLayout();
@@ -97,6 +105,11 @@ private:
     void OnSendQuickClicked();
     void OnReceiveQuickClicked();
     void OnTransactionsQuickClicked();
+    
+    // Daemon control callbacks
+    void OnStartDaemonClicked();
+    void OnStopDaemonClicked();
+    void UpdateDaemonStatus();
 };
 
 #endif // GOTHAM_SDL2_SCREENS_MAIN_SCREEN_H

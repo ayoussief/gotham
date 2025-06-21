@@ -14,6 +14,7 @@ namespace interfaces {
     class Node;
 }
 
+class GothamCityApp;
 class WindowManager;
 class Screen;
 class Renderer;
@@ -42,7 +43,7 @@ enum class ScreenType {
 class GothamCityGUI
 {
 public:
-    GothamCityGUI(WindowManager& window_manager, interfaces::Node* node = nullptr);
+    GothamCityGUI(WindowManager& window_manager, GothamCityApp& app, interfaces::Node* node = nullptr);
     ~GothamCityGUI();
 
     /**
@@ -115,8 +116,14 @@ public:
      */
     PersistentLayout* GetPersistentLayout() const { return m_persistent_layout.get(); }
 
+    /**
+     * Get the app instance
+     */
+    GothamCityApp& GetApp() const { return m_app; }
+
 private:
     WindowManager& m_window_manager;
+    GothamCityApp& m_app;
     interfaces::Node* m_node;
 
     // Core systems
