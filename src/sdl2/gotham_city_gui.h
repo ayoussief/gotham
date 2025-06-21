@@ -67,6 +67,11 @@ public:
      * Switch to a different screen
      */
     void SwitchScreen(ScreenType screen_type);
+    
+    /**
+     * Get the previous screen type for context-aware navigation
+     */
+    ScreenType GetPreviousScreen() const { return m_previous_screen_type; }
 
     /**
      * Get the current renderer
@@ -113,6 +118,7 @@ private:
     // Screen management
     std::unique_ptr<Screen> m_current_screen;
     ScreenType m_current_screen_type{ScreenType::SPLASH};
+    ScreenType m_previous_screen_type{ScreenType::SPLASH};
 
     // State
     bool m_initialized{false};

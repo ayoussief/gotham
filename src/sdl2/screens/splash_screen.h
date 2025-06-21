@@ -7,6 +7,10 @@
 
 #include "../ui/screen.h"
 #include "../ui/label.h"
+#include "../ui/progress_bar.h"
+#include "../ui/ui_factory.h"
+#include "../ui/layout_manager.h"
+#include "../ui/ui_style_guide.h"
 #include <memory>
 
 /**
@@ -26,9 +30,15 @@ public:
     void OnResize(int new_width, int new_height) override;
 
 private:
+    // UI Systems
+    std::unique_ptr<UIFactory> m_ui_factory;
+    std::unique_ptr<LayoutManager> m_layout_manager;
+    
+    // UI Components
     std::unique_ptr<Label> m_title_label;
     std::unique_ptr<Label> m_subtitle_label;
     std::unique_ptr<Label> m_status_label;
+    std::unique_ptr<ProgressBar> m_progress_bar;
     
     float m_elapsed_time{0.0f};
     float m_fade_alpha{0.0f};
@@ -39,13 +49,12 @@ private:
     float m_loading_progress{0.0f};
     std::string m_loading_status{"Initializing Gotham City..."};
     
+    void CreateLayout();
     void CreateLabels();
     void UpdateLoadingProgress(float delta_time);
     void RenderBackground(Renderer& renderer);
     void RenderLogo(Renderer& renderer);
     void RenderLoadingBar(Renderer& renderer);
-    Color GetGothamGoldColor() const { return Color(255, 215, 0, 255); }
-    Color GetGothamDarkColor() const { return Color(15, 15, 20, 255); }
 };
 
 #endif // GOTHAM_SDL2_SCREENS_SPLASH_SCREEN_H

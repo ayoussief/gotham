@@ -9,6 +9,9 @@
 #include "../ui/button.h"
 #include "../ui/label.h"
 #include "../ui/panel.h"
+#include "../ui/ui_factory.h"
+#include "../ui/layout_manager.h"
+#include "../ui/ui_style_guide.h"
 #include <memory>
 #include <vector>
 
@@ -34,6 +37,10 @@ public:
     void OnResize(int new_width, int new_height) override;
 
 private:
+    // UI Systems
+    std::unique_ptr<UIFactory> m_ui_factory;
+    std::unique_ptr<LayoutManager> m_layout_manager;
+    
     // UI Components
     std::unique_ptr<Panel> m_header_panel;
     std::unique_ptr<Panel> m_filter_panel;
@@ -68,6 +75,7 @@ private:
     void CreateHeaderPanel();
     void CreateFilterPanel();
     void CreateTransactionsPanel();
+    void CreatePaginationPanel();
     void LoadTransactions();
     void FilterTransactions();
     void UpdateTransactionDisplay();
@@ -83,8 +91,6 @@ private:
     void OnNextPageClicked();
     
     // Helper methods
-    Color GetGothamGoldColor() const;
-    Color GetGothamDarkColor() const;
     std::vector<TransactionDisplay> GetFilteredTransactions() const;
 };
 

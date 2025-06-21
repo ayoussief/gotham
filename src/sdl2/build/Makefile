@@ -606,6 +606,30 @@ ui/label.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/gotham-city.dir/build.make CMakeFiles/gotham-city.dir/ui/label.cpp.s
 .PHONY : ui/label.cpp.s
 
+ui/layout_manager.o: ui/layout_manager.cpp.o
+.PHONY : ui/layout_manager.o
+
+# target to build an object file
+ui/layout_manager.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gotham-city.dir/build.make CMakeFiles/gotham-city.dir/ui/layout_manager.cpp.o
+.PHONY : ui/layout_manager.cpp.o
+
+ui/layout_manager.i: ui/layout_manager.cpp.i
+.PHONY : ui/layout_manager.i
+
+# target to preprocess a source file
+ui/layout_manager.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gotham-city.dir/build.make CMakeFiles/gotham-city.dir/ui/layout_manager.cpp.i
+.PHONY : ui/layout_manager.cpp.i
+
+ui/layout_manager.s: ui/layout_manager.cpp.s
+.PHONY : ui/layout_manager.s
+
+# target to generate assembly for a file
+ui/layout_manager.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gotham-city.dir/build.make CMakeFiles/gotham-city.dir/ui/layout_manager.cpp.s
+.PHONY : ui/layout_manager.cpp.s
+
 ui/panel.o: ui/panel.cpp.o
 .PHONY : ui/panel.o
 
@@ -701,6 +725,30 @@ ui/text_input.s: ui/text_input.cpp.s
 ui/text_input.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/gotham-city.dir/build.make CMakeFiles/gotham-city.dir/ui/text_input.cpp.s
 .PHONY : ui/text_input.cpp.s
+
+ui/ui_factory.o: ui/ui_factory.cpp.o
+.PHONY : ui/ui_factory.o
+
+# target to build an object file
+ui/ui_factory.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gotham-city.dir/build.make CMakeFiles/gotham-city.dir/ui/ui_factory.cpp.o
+.PHONY : ui/ui_factory.cpp.o
+
+ui/ui_factory.i: ui/ui_factory.cpp.i
+.PHONY : ui/ui_factory.i
+
+# target to preprocess a source file
+ui/ui_factory.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gotham-city.dir/build.make CMakeFiles/gotham-city.dir/ui/ui_factory.cpp.i
+.PHONY : ui/ui_factory.cpp.i
+
+ui/ui_factory.s: ui/ui_factory.cpp.s
+.PHONY : ui/ui_factory.s
+
+# target to generate assembly for a file
+ui/ui_factory.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gotham-city.dir/build.make CMakeFiles/gotham-city.dir/ui/ui_factory.cpp.s
+.PHONY : ui/ui_factory.cpp.s
 
 utils/animation.o: utils/animation.cpp.o
 .PHONY : utils/animation.o
@@ -913,6 +961,9 @@ help:
 	@echo "... ui/label.o"
 	@echo "... ui/label.i"
 	@echo "... ui/label.s"
+	@echo "... ui/layout_manager.o"
+	@echo "... ui/layout_manager.i"
+	@echo "... ui/layout_manager.s"
 	@echo "... ui/panel.o"
 	@echo "... ui/panel.i"
 	@echo "... ui/panel.s"
@@ -925,6 +976,9 @@ help:
 	@echo "... ui/text_input.o"
 	@echo "... ui/text_input.i"
 	@echo "... ui/text_input.s"
+	@echo "... ui/ui_factory.o"
+	@echo "... ui/ui_factory.i"
+	@echo "... ui/ui_factory.s"
 	@echo "... utils/animation.o"
 	@echo "... utils/animation.i"
 	@echo "... utils/animation.s"

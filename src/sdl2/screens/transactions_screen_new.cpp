@@ -356,12 +356,3 @@ std::vector<TransactionDisplay> TransactionsScreen::GetFilteredTransactions() co
     return filtered;
 }
 
-Color TransactionsScreen::GetGothamGoldColor() const
-{
-    return Color(255, 215, 0, 255);
-}
-
-Color TransactionsScreen::GetGothamDarkColor() const
-{
-    return Color(15, 15, 20, 255);
-}

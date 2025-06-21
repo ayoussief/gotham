@@ -10,6 +10,9 @@
 #include "../ui/label.h"
 #include "../ui/panel.h"
 #include "../ui/text_input.h"
+#include "../ui/ui_factory.h"
+#include "../ui/layout_manager.h"
+#include "../ui/ui_style_guide.h"
 #include <memory>
 
 class SendScreen : public Screen
@@ -24,6 +27,10 @@ public:
     void OnResize(int new_width, int new_height) override;
 
 private:
+    // UI Systems
+    std::unique_ptr<UIFactory> m_ui_factory;
+    std::unique_ptr<LayoutManager> m_layout_manager;
+    
     // UI Components
     std::unique_ptr<Panel> m_header_panel;
     std::unique_ptr<Panel> m_form_panel;
@@ -62,8 +69,8 @@ private:
     
     void CreateLayout();
     void CreateHeaderPanel();
-    void CreateFormPanel();
-    void CreatePreviewPanel();
+    void CreateFormPanel(int y, int height);
+    void CreatePreviewPanel(int y, int height);
     void UpdatePreview();
     void SetupButtonCallbacks();
     void ValidateForm();
@@ -74,8 +81,7 @@ private:
     void OnClearClicked();
     
     // Helper methods
-    Color GetGothamGoldColor() const { return Color(255, 215, 0, 255); }
-    Color GetGothamDarkColor() const { return Color(15, 15, 20, 255); }
+
     bool IsValidAddress(const std::string& address) const;
     bool IsValidAmount(const std::string& amount) const;
 };

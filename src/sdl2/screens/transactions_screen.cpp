@@ -15,6 +15,11 @@
 
 TransactionsScreen::TransactionsScreen(GothamCityGUI& gui) : Screen(gui)
 {
+    // Initialize UI systems
+    if (auto* theme_manager = m_gui.GetThemeManager()) {
+        m_ui_factory = std::make_unique<UIFactory>(*theme_manager);
+    }
+    m_layout_manager = std::make_unique<LayoutManager>();
 }
 
 bool TransactionsScreen::Initialize()
@@ -49,76 +54,150 @@ bool TransactionsScreen::Initialize()
 
 void TransactionsScreen::CreateLayout()
 {
-    // Get current screen dimensions
-    int screen_width = m_gui.GetRenderer()->GetWidth();
-    int screen_height = m_gui.GetRenderer()->GetHeight();
-    int center_x = screen_width / 2;
+    CreateHeaderPanel();
+    CreateFilterPanel();
+    CreateTransactionsPanel();
+    CreatePaginationPanel();
+}
 
-    // Create header components
-    if (!m_title_label) {
-        m_title_label = std::make_unique<Label>("Transaction History", Point(50, 30));
-        m_title_label->SetColor(Color(255, 215, 0, 255)); // Gotham gold
-    }
+void TransactionsScreen::CreateHeaderPanel()
+{
+    if (!m_ui_factory || !m_layout_manager) return;
+    
+    int width = m_gui.GetRenderer()->GetWidth();
+    
+    // Create header panel with consistent styling
+    Rect header_bounds = Rect(0, 0, width, UIStyleGuide::Dimensions::HEADER_HEIGHT);
+    m_header_panel = m_ui_factory->CreatePanel(header_bounds, PanelStyle::HEADER);
+    
+    // Create header components with factory
+    m_title_label = m_ui_factory->CreateLabel("📊 Transaction History", Point(0, 0), LabelStyle::TITLE);
+    m_back_button = m_ui_factory->CreateButton("← Back", Rect(0, 0, 100, 40), ButtonStyle::SECONDARY);
+    
+    // Setup layout for header components
+    std::vector<LayoutItem> header_items(2);
+    
+    // Title item
+    header_items[0].constraints.preferred_width = 300;
+    header_items[0].margin = Margin(0, UIStyleGuide::Spacing::LG);
+    header_items[0].on_bounds_changed = [this](const Rect& bounds) {
+        if (m_title_label) {
+            m_title_label->SetPosition(Point(bounds.x, bounds.y + bounds.h / 2 - 12));
+        }
+    };
+    
+    // Back button item
+    header_items[1].constraints.preferred_width = 100;
+    header_items[1].margin = Margin(UIStyleGuide::Spacing::SM);
+    header_items[1].on_bounds_changed = [this](const Rect& bounds) {
+        if (m_back_button) {
+            m_back_button->SetBounds(bounds);
+        }
+    };
+    
+    // Apply horizontal layout for header
+    m_layout_manager->CreateHorizontalLayout(header_bounds, header_items, 
+                                           UIStyleGuide::Spacing::MD, Alignment::CENTER);
+}
 
-    if (!m_back_button) {
-        m_back_button = std::make_unique<Button>("← Back (ESC)", Rect(screen_width - 150, 25, 120, 30));
-        m_back_button->SetTextColor(Color(180, 180, 180, 255));
-    }
+void TransactionsScreen::CreateFilterPanel()
+{
+    if (!m_ui_factory || !m_layout_manager) return;
+    
+    int width = m_gui.GetRenderer()->GetWidth();
+    int panel_width = std::min(600, width - 2 * UIStyleGuide::Spacing::LG);
+    int panel_x = (width - panel_width) / 2;
+    
+    // Create filter panel with consistent styling
+    Rect filter_bounds = Rect(panel_x, 
+                             UIStyleGuide::Dimensions::HEADER_HEIGHT + UIStyleGuide::Spacing::MD,
+                             panel_width, 
+                             60);
+    m_filter_panel = m_ui_factory->CreatePanel(filter_bounds, PanelStyle::CARD);
+    
+    // Create filter buttons with factory
+    m_all_filter_button = m_ui_factory->CreateButton("📋 All", Rect(0, 0, 120, UIStyleGuide::Dimensions::BUTTON_HEIGHT), 
+                                                     m_current_filter == "all" ? ButtonStyle::PRIMARY : ButtonStyle::SECONDARY);
+    m_sent_filter_button = m_ui_factory->CreateButton("📤 Sent", Rect(0, 0, 120, UIStyleGuide::Dimensions::BUTTON_HEIGHT), 
+                                                      m_current_filter == "sent" ? ButtonStyle::PRIMARY : ButtonStyle::SECONDARY);
+    m_received_filter_button = m_ui_factory->CreateButton("📥 Received", Rect(0, 0, 120, UIStyleGuide::Dimensions::BUTTON_HEIGHT), 
+                                                          m_current_filter == "received" ? ButtonStyle::PRIMARY : ButtonStyle::SECONDARY);
+    
+    m_filter_status_label = m_ui_factory->CreateLabel("Showing all transactions", Point(0, 0), LabelStyle::CAPTION);
+    m_filter_status_label->SetColor(UIStyleGuide::Colors::TEXT_SECONDARY);
+    
+    // Setup layout for filter panel
+    std::vector<LayoutItem> filter_items(2);
+    
+    // Filter buttons (horizontal layout)
+    filter_items[0].constraints.preferred_height = UIStyleGuide::Dimensions::BUTTON_HEIGHT;
+    filter_items[0].margin = Margin(UIStyleGuide::Spacing::MD);
+    filter_items[0].on_bounds_changed = [this](const Rect& bounds) {
+        if (m_all_filter_button && m_sent_filter_button && m_received_filter_button) {
+            int button_width = (bounds.w - 2 * UIStyleGuide::Spacing::MD) / 3;
+            
+            Rect all_bounds = bounds;
+            all_bounds.w = button_width;
+            m_all_filter_button->SetBounds(all_bounds);
+            
+            Rect sent_bounds = bounds;
+            sent_bounds.x += button_width + UIStyleGuide::Spacing::MD;
+            sent_bounds.w = button_width;
+            m_sent_filter_button->SetBounds(sent_bounds);
+            
+            Rect received_bounds = bounds;
+            received_bounds.x += 2 * (button_width + UIStyleGuide::Spacing::MD);
+            received_bounds.w = button_width;
+            m_received_filter_button->SetBounds(received_bounds);
+        }
+    };
+    
+    // Status label
+    filter_items[1].constraints.preferred_height = UIStyleGuide::FontSize::CAPTION + UIStyleGuide::Spacing::SM;
+    filter_items[1].margin = Margin(UIStyleGuide::Spacing::SM, UIStyleGuide::Spacing::MD);
+    filter_items[1].on_bounds_changed = [this](const Rect& bounds) {
+        if (m_filter_status_label) {
+            m_filter_status_label->SetPosition(Point(bounds.x, bounds.y));
+        }
+    };
+    
+    // Apply vertical layout for filter panel
+    m_layout_manager->CreateVerticalLayout(filter_bounds, filter_items, 
+                                         UIStyleGuide::Spacing::SM, Alignment::START);
+}
 
-    // Create filter buttons
-    int filter_y = 100;
-    if (!m_all_filter_button) {
-        m_all_filter_button = std::make_unique<Button>("1 - All", Rect(center_x - 150, filter_y, 90, 35));
-        m_all_filter_button->SetPrimary(m_current_filter == "all");
-        m_all_filter_button->SetTextColor(Color(255, 255, 255, 255));
-    }
+void TransactionsScreen::CreateTransactionsPanel()
+{
+    if (!m_ui_factory || !m_layout_manager) return;
+    
+    int width = m_gui.GetRenderer()->GetWidth();
+    int height = m_gui.GetRenderer()->GetHeight();
+    int panel_width = std::min(800, width - 2 * UIStyleGuide::Spacing::LG);
+    int panel_x = (width - panel_width) / 2;
+    
+    // Create transactions panel with consistent styling
+    Rect transactions_bounds = Rect(panel_x, 
+                                   UIStyleGuide::Dimensions::HEADER_HEIGHT + 60 + 2 * UIStyleGuide::Spacing::MD,
+                                   panel_width, 
+                                   height - (UIStyleGuide::Dimensions::HEADER_HEIGHT + 60 + 80 + 4 * UIStyleGuide::Spacing::MD));
+    m_transactions_panel = m_ui_factory->CreatePanel(transactions_bounds, PanelStyle::MAIN);
+}
 
-    if (!m_sent_filter_button) {
-        m_sent_filter_button = std::make_unique<Button>("2 - Sent", Rect(center_x - 45, filter_y, 90, 35));
-        m_sent_filter_button->SetPrimary(m_current_filter == "sent");
-        m_sent_filter_button->SetTextColor(Color(255, 255, 255, 255));
-    }
-
-    if (!m_received_filter_button) {
-        m_received_filter_button = std::make_unique<Button>("3 - Received", Rect(center_x + 60, filter_y, 90, 35));
-        m_received_filter_button->SetPrimary(m_current_filter == "received");
-        m_received_filter_button->SetTextColor(Color(255, 255, 255, 255));
-    }
-
-    // Create transactions header
-    if (!m_transactions_header_label) {
-        m_transactions_header_label = std::make_unique<Label>("Recent Transactions", Point(50, 170));
-        m_transactions_header_label->SetColor(Color(255, 215, 0, 255));
-    }
-
-    // Create pagination controls
-    int pagination_y = screen_height - 60;
-    if (!m_prev_button) {
-        m_prev_button = std::make_unique<Button>("← Prev", Rect(center_x - 100, pagination_y, 70, 30));
-        m_prev_button->SetPrimary(true);
-        m_prev_button->SetTextColor(Color(255, 255, 255, 255));
-    }
-
-    if (!m_next_button) {
-        m_next_button = std::make_unique<Button>("Next →", Rect(center_x + 30, pagination_y, 70, 30));
-        m_next_button->SetPrimary(true);
-        m_next_button->SetTextColor(Color(255, 255, 255, 255));
-    }
-
-    if (!m_page_label) {
-        m_page_label = std::make_unique<Label>("1 / 1", Point(center_x - 15, pagination_y + 8));
-        m_page_label->SetColor(Color(255, 215, 0, 255));
-        m_page_label->SetAlignment(TextAlignment::CENTER);
-    }
-
-    // Create instructions
-    if (!m_instructions_label) {
-        m_instructions_label = std::make_unique<Label>("Controls: ESC=Back, 1/2/3=Filter, ←/→=Pages", Point(30, screen_height - 15));
-        m_instructions_label->SetColor(Color(120, 120, 120, 255));
-    }
-
-    // Update transaction labels
-    UpdateTransactionLabels();
+void TransactionsScreen::CreatePaginationPanel()
+{
+    if (!m_ui_factory || !m_layout_manager) return;
+    
+    int width = m_gui.GetRenderer()->GetWidth();
+    int height = m_gui.GetRenderer()->GetHeight();
+    int panel_width = std::min(600, width - 2 * UIStyleGuide::Spacing::LG);
+    int panel_x = (width - panel_width) / 2;
+    
+    // Create pagination panel with consistent styling
+    Rect pagination_bounds = Rect(panel_x, 
+                                 height - 80 - UIStyleGuide::Spacing::MD,
+                                 panel_width, 
+                                 60);
+    m_pagination_panel = m_ui_factory->CreatePanel(pagination_bounds, PanelStyle::STATUS);
 }
 
 void TransactionsScreen::UpdateTransactionLabels()
@@ -210,6 +289,12 @@ void TransactionsScreen::HandleEvent(const SDL_Event& event)
                 break;
         }
     }
+    
+    // Pass events to UI components
+    if (m_back_button) m_back_button->HandleEvent(event);
+    if (m_all_filter_button) m_all_filter_button->HandleEvent(event);
+    if (m_sent_filter_button) m_sent_filter_button->HandleEvent(event);
+    if (m_received_filter_button) m_received_filter_button->HandleEvent(event);
 }
 
 void TransactionsScreen::Update(float delta_time)
@@ -219,80 +304,42 @@ void TransactionsScreen::Update(float delta_time)
 
 void TransactionsScreen::Render(Renderer& renderer)
 {
-    // Clear with dark background
-    renderer.Clear(Color(15, 15, 20, 255));
+    // Render background with consistent theme
+    renderer.Clear(UIStyleGuide::Colors::BACKGROUND_DARK);
     
-    // Draw header background
-    renderer.SetDrawColor(Color(30, 30, 40, 255));
-    renderer.FillRect(Rect(0, 0, renderer.GetWidth(), 70));
-    renderer.SetDrawColor(Color(255, 215, 0, 255));
-    renderer.FillRect(Rect(0, 67, renderer.GetWidth(), 3));
+    // Render UI panels
+    if (m_header_panel) m_header_panel->Render(renderer);
+    if (m_filter_panel) m_filter_panel->Render(renderer);
+    if (m_transactions_panel) m_transactions_panel->Render(renderer);
+    if (m_pagination_panel) m_pagination_panel->Render(renderer);
     
-    // Draw filter panel background
-    int center_x = renderer.GetWidth() / 2;
-    renderer.SetDrawColor(Color(35, 35, 45, 255));
-    renderer.FillRect(Rect(center_x - 170, 85, 340, 55));
-    renderer.SetDrawColor(Color(70, 70, 80, 255));
-    renderer.DrawRect(Rect(center_x - 170, 85, 340, 55));
-    
-    // Draw transactions panel background
-    renderer.SetDrawColor(Color(25, 25, 35, 255));
-    renderer.FillRect(Rect(30, 155, renderer.GetWidth() - 60, renderer.GetHeight() - 230));
-    renderer.SetDrawColor(Color(70, 70, 80, 255));
-    renderer.DrawRect(Rect(30, 155, renderer.GetWidth() - 60, renderer.GetHeight() - 230));
-    
-    // Render UI components with proper fonts
+    // Get fonts from font manager
     FontManager* font_manager = m_gui.GetFontManager();
     if (font_manager) {
         TTF_Font* title_font = font_manager->GetDefaultFont(24);
-        TTF_Font* button_font = font_manager->GetDefaultFont(16);
-        TTF_Font* body_font = font_manager->GetDefaultFont(14);
-        TTF_Font* small_font = font_manager->GetDefaultFont(12);
+        TTF_Font* body_font = font_manager->GetDefaultFont(16);
+        TTF_Font* small_font = font_manager->GetDefaultFont(14);
         
-        // Header components
-        if (m_title_label && title_font) {
-            m_title_label->Render(renderer, title_font);
-        }
-        if (m_back_button && button_font) {
-            m_back_button->Render(renderer, button_font);
-        }
+        // Render header components
+        if (m_title_label) m_title_label->Render(renderer, title_font);
+        if (m_back_button) m_back_button->Render(renderer, body_font);
         
-        // Filter components
-        if (m_all_filter_button && button_font) {
-            m_all_filter_button->Render(renderer, button_font);
-        }
-        if (m_sent_filter_button && button_font) {
-            m_sent_filter_button->Render(renderer, button_font);
-        }
-        if (m_received_filter_button && button_font) {
-            m_received_filter_button->Render(renderer, button_font);
+        // Render filter components
+        if (m_all_filter_button) m_all_filter_button->Render(renderer, body_font);
+        if (m_sent_filter_button) m_sent_filter_button->Render(renderer, body_font);
+        if (m_received_filter_button) m_received_filter_button->Render(renderer, body_font);
+        if (m_filter_status_label) m_filter_status_label->Render(renderer, small_font);
+        
+        // Render transaction list
+        for (const auto& tx_label : m_transaction_labels) {
+            if (tx_label) tx_label->Render(renderer, body_font);
         }
         
-        // Transaction list components
-        if (m_transactions_header_label && body_font) {
-            m_transactions_header_label->Render(renderer, body_font);
-        }
-        
-        // Render transaction labels
-        for (auto& label : m_transaction_labels) {
-            if (label && body_font) {
-                label->Render(renderer, body_font);
-            }
-        }
-        
-        // Pagination components
-        if (m_prev_button && button_font) {
-            m_prev_button->Render(renderer, button_font);
-        }
-        if (m_next_button && button_font) {
-            m_next_button->Render(renderer, button_font);
-        }
-        if (m_page_label && body_font) {
-            m_page_label->Render(renderer, body_font);
-        }
-        if (m_instructions_label && small_font) {
-            m_instructions_label->Render(renderer, small_font);
-        }
+        // Render pagination components
+        if (m_prev_button) m_prev_button->Render(renderer, body_font);
+        if (m_next_button) m_next_button->Render(renderer, body_font);
+        if (m_page_label) m_page_label->Render(renderer, body_font);
+        if (m_instructions_label) m_instructions_label->Render(renderer, small_font);
     }
 }
 
@@ -337,7 +384,29 @@ void TransactionsScreen::LoadTransactions()
 
 void TransactionsScreen::SetupButtonCallbacks()
 {
-    // Button callbacks would be set up here if needed
+    if (m_back_button) {
+        m_back_button->SetOnClick([this]() { 
+            OnBackClicked();
+        });
+    }
+    
+    if (m_all_filter_button) {
+        m_all_filter_button->SetOnClick([this]() {
+            OnAllFilterClicked();
+        });
+    }
+    
+    if (m_sent_filter_button) {
+        m_sent_filter_button->SetOnClick([this]() {
+            OnSentFilterClicked();
+        });
+    }
+    
+    if (m_received_filter_button) {
+        m_received_filter_button->SetOnClick([this]() {
+            OnReceivedFilterClicked();
+        });
+    }
 }
 
 std::vector<TransactionDisplay> TransactionsScreen::GetFilteredTransactions() const
@@ -355,12 +424,106 @@ std::vector<TransactionDisplay> TransactionsScreen::GetFilteredTransactions() co
     return filtered;
 }
 
-Color TransactionsScreen::GetGothamGoldColor() const
+void TransactionsScreen::OnBackClicked()
 {
-    return Color(255, 215, 0, 255);
+    // Context-aware navigation: go back to where we came from
+    ScreenType previous = m_gui.GetPreviousScreen();
+    if (previous == ScreenType::MAIN) {
+        m_gui.SwitchScreen(ScreenType::MAIN);
+    } else {
+        m_gui.SwitchScreen(ScreenType::WALLET);
+    }
 }
 
-Color TransactionsScreen::GetGothamDarkColor() const
+void TransactionsScreen::OnAllFilterClicked()
 {
-    return Color(15, 15, 20, 255);
+    m_current_filter = "all";
+    m_current_page = 0;
+    FilterTransactions();
+    UpdateTransactionDisplay();
 }
+
+void TransactionsScreen::OnSentFilterClicked()
+{
+    m_current_filter = "sent";
+    m_current_page = 0;
+    FilterTransactions();
+    UpdateTransactionDisplay();
+}
+
+void TransactionsScreen::OnReceivedFilterClicked()
+{
+    m_current_filter = "received";
+    m_current_page = 0;
+    FilterTransactions();
+    UpdateTransactionDisplay();
+}
+
+void TransactionsScreen::OnPrevPageClicked()
+{
+    if (m_current_page > 0) {
+        m_current_page--;
+        UpdateTransactionDisplay();
+    }
+}
+
+void TransactionsScreen::OnNextPageClicked()
+{
+    auto filtered = GetFilteredTransactions();
+    int total_pages = (filtered.size() + m_transactions_per_page - 1) / m_transactions_per_page;
+    if (m_current_page < total_pages - 1) {
+        m_current_page++;
+        UpdateTransactionDisplay();
+    }
+}
+
+void TransactionsScreen::FilterTransactions()
+{
+    // This method filters the transactions based on current filter
+    // The actual filtering is done in GetFilteredTransactions()
+    // This method can be used for additional filtering logic if needed
+    std::cout << "Filtering transactions with filter: " << m_current_filter << std::endl;
+}
+
+void TransactionsScreen::UpdateTransactionDisplay()
+{
+    // Update the transaction labels based on current page and filter
+    auto filtered = GetFilteredTransactions();
+    
+    // Clear existing transaction labels
+    m_transaction_labels.clear();
+    
+    // Calculate which transactions to show on current page
+    int start_index = m_current_page * m_transactions_per_page;
+    int end_index = std::min(start_index + m_transactions_per_page, static_cast<int>(filtered.size()));
+    
+    // Update page label
+    int total_pages = (filtered.size() + m_transactions_per_page - 1) / m_transactions_per_page;
+    if (m_page_label) {
+        std::string page_text = "Page " + std::to_string(m_current_page + 1) + " of " + std::to_string(total_pages);
+        m_page_label->SetText(page_text);
+    }
+    
+    // Create labels for visible transactions
+    if (m_ui_factory) {
+        int y_offset = 150; // Starting Y position for transaction list
+        for (int i = start_index; i < end_index; i++) {
+            const auto& tx = filtered[i];
+            
+            // Create transaction display string
+            std::string tx_text = (tx.is_incoming ? "↓ +" : "↑ -") + 
+                                 std::to_string(tx.amount) + " BTC - " + 
+                                 tx.date + " (" + std::to_string(tx.confirmations) + " conf)";
+            
+            auto tx_label = m_ui_factory->CreateLabel(tx_text, Point(50, y_offset), LabelStyle::BODY);
+            tx_label->SetColor(tx.is_incoming ? UIStyleGuide::Colors::SUCCESS : UIStyleGuide::Colors::WARNING);
+            
+            m_transaction_labels.push_back(std::move(tx_label));
+            y_offset += 30;
+        }
+    }
+    
+    std::cout << "Updated transaction display: showing " << (end_index - start_index) 
+              << " transactions on page " << (m_current_page + 1) << std::endl;
+}
+

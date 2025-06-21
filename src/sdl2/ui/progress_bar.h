@@ -89,6 +89,21 @@ public:
      */
     bool IsAnimated() const { return m_animated; }
 
+    /**
+     * Set background color
+     */
+    void SetBackgroundColor(const Color& color) { m_background_color = color; }
+
+    /**
+     * Set foreground color
+     */
+    void SetForegroundColor(const Color& color) { m_fill_color = color; }
+
+    /**
+     * Set border color
+     */
+    void SetBorderColor(const Color& color) { m_border_color = color; }
+
 private:
     Rect m_bounds;
     float m_progress{0.0f};

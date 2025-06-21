@@ -23,6 +23,8 @@ add_executable(gotham-city
     ui/panel.cpp
     ui/text_input.cpp
     ui/progress_bar.cpp
+    ui/ui_factory.cpp
+    ui/layout_manager.cpp
     screens/splash_screen.cpp
     screens/main_screen.cpp
     screens/wallet_screen.cpp

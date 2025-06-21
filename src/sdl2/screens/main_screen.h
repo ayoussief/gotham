@@ -9,6 +9,8 @@
 #include "../ui/button.h"
 #include "../ui/label.h"
 #include "../ui/panel.h"
+#include "../ui/ui_factory.h"
+#include "../ui/layout_manager.h"
 #include <memory>
 #include <vector>
 
@@ -29,6 +31,10 @@ public:
     void OnResize(int new_width, int new_height) override;
 
 private:
+    // UI Systems
+    std::unique_ptr<UIFactory> m_ui_factory;
+    std::unique_ptr<LayoutManager> m_layout_manager;
+    
     // UI Components
     std::unique_ptr<Panel> m_header_panel;
     std::unique_ptr<Panel> m_sidebar_panel;
@@ -56,11 +62,17 @@ private:
     std::unique_ptr<Label> m_connection_label;
     std::unique_ptr<Label> m_block_height_label;
     
+    // Layout items for responsive design
+    std::vector<LayoutItem> m_header_items;
+    std::vector<LayoutItem> m_sidebar_items;
+    std::vector<LayoutItem> m_status_items;
+    
     // Animation and state
     float m_elapsed_time{0.0f};
     bool m_wallet_connected{false};
     int m_current_block_height{0};
     int m_connection_count{0};
+    std::string m_active_screen{"wallet"};
     
     void CreateLayout();
     void CreateHeaderPanel();
@@ -71,6 +83,8 @@ private:
     void UpdateNetworkInfo();
     void RenderBackground(Renderer& renderer);
     void SetupButtonCallbacks();
+    void UpdateActiveScreen(const std::string& screen_name);
+    void RefreshNavigationButtons();
     
     // Navigation callbacks
     void OnWalletClicked();

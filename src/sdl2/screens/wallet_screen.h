@@ -9,6 +9,9 @@
 #include "../ui/button.h"
 #include "../ui/label.h"
 #include "../ui/panel.h"
+#include "../ui/ui_factory.h"
+#include "../ui/layout_manager.h"
+#include "../ui/ui_style_guide.h"
 #include <memory>
 
 class WalletScreen : public Screen
@@ -23,6 +26,10 @@ public:
     void OnResize(int new_width, int new_height) override;
 
 private:
+    // UI Systems
+    std::unique_ptr<UIFactory> m_ui_factory;
+    std::unique_ptr<LayoutManager> m_layout_manager;
+    
     // UI Components
     std::unique_ptr<Panel> m_header_panel;
     std::unique_ptr<Panel> m_balance_panel;
@@ -48,6 +55,10 @@ private:
     std::unique_ptr<Label> m_transactions_title_label;
     std::vector<std::unique_ptr<Label>> m_transaction_labels;
     
+    // Layout items for responsive design
+    std::vector<LayoutItem> m_balance_items;
+    std::vector<LayoutItem> m_action_items;
+    
     float m_elapsed_time{0.0f};
     
     void CreateLayout();
@@ -63,10 +74,6 @@ private:
     void OnSendClicked();
     void OnReceiveClicked();
     void OnTransactionsClicked();
-    
-    // Helper methods
-    Color GetGothamGoldColor() const;
-    Color GetGothamDarkColor() const;
 };
 
 #endif // GOTHAM_SDL2_SCREENS_WALLET_SCREEN_H

@@ -115,6 +115,26 @@ public:
      */
     void SetOnEnterPressed(std::function<void()> callback) { m_on_enter_pressed = callback; }
 
+    /**
+     * Set background color
+     */
+    void SetBackgroundColor(const Color& color) { m_background_color = color; }
+
+    /**
+     * Set border color
+     */
+    void SetBorderColor(const Color& color) { m_border_color = color; }
+
+    /**
+     * Set text color
+     */
+    void SetTextColor(const Color& color) { m_text_color = color; }
+
+    /**
+     * Set border width
+     */
+    void SetBorderWidth(int width) { m_border_width = width; }
+
 private:
     std::string m_text;
     std::string m_placeholder;
@@ -136,6 +156,7 @@ private:
     Color m_text_color{255, 255, 255, 255};
     Color m_placeholder_color{150, 150, 150, 255};
     Color m_cursor_color{255, 215, 0, 255};
+    int m_border_width{1};
     
     // Callbacks
     std::function<void(const std::string&)> m_on_text_changed;

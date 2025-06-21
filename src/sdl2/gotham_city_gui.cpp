@@ -169,6 +169,9 @@ void GothamCityGUI::SwitchScreen(ScreenType screen_type)
 
     std::cout << "Switching to screen: " << static_cast<int>(screen_type) << std::endl;
 
+    // Track previous screen for context-aware navigation
+    m_previous_screen_type = m_current_screen_type;
+    
     m_current_screen = CreateScreen(screen_type);
     m_current_screen_type = screen_type;
 

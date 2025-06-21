@@ -338,6 +338,16 @@ CMakeFiles/gotham-city.dir/gotham_city_gui.cpp.o: \
  /home/amr/gotham/src/sdl2/screens/../ui/screen.h \
  /home/amr/gotham/src/sdl2/screens/../ui/label.h \
  /home/amr/gotham/src/sdl2/screens/../ui/../renderer.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/progress_bar.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/ui_factory.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/button.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/label.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/panel.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/text_input.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/progress_bar.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/../utils/theme.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/layout_manager.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/ui_style_guide.h \
  /home/amr/gotham/src/sdl2/screens/main_screen.h \
  /home/amr/gotham/src/sdl2/screens/../ui/button.h \
  /home/amr/gotham/src/sdl2/screens/../ui/panel.h \

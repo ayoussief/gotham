@@ -12,6 +12,11 @@
 SplashScreen::SplashScreen(GothamCityGUI& gui)
     : Screen(gui)
 {
+    // Initialize UI systems
+    if (auto* theme_manager = m_gui.GetThemeManager()) {
+        m_ui_factory = std::make_unique<UIFactory>(*theme_manager);
+    }
+    m_layout_manager = std::make_unique<LayoutManager>();
 }
 
 bool SplashScreen::Initialize()
@@ -20,42 +25,110 @@ bool SplashScreen::Initialize()
         return true;
     }
 
-    CreateLabels();
+    CreateLayout();
 
     m_initialized = true;
     std::cout << "Splash screen initialized" << std::endl;
     return true;
 }
 
+void SplashScreen::CreateLayout()
+{
+    CreateLabels();
+}
+
 void SplashScreen::CreateLabels()
 {
+    if (!m_ui_factory || !m_layout_manager) return;
+    
     // Get current screen dimensions
-    int center_x = m_gui.GetRenderer()->GetWidth() / 2;
-    int center_y = m_gui.GetRenderer()->GetHeight() / 2;
+    int screen_width = m_gui.GetRenderer()->GetWidth();
+    int screen_height = m_gui.GetRenderer()->GetHeight();
+    int center_x = screen_width / 2;
+    int center_y = screen_height / 2;
 
-    if (!m_title_label) {
-        m_title_label = std::make_unique<Label>("GOTHAM CITY", Point(center_x, center_y - 80));
-        m_title_label->SetAlignment(TextAlignment::CENTER);
-        m_title_label->SetColor(GetGothamGoldColor());
-    } else {
-        m_title_label->SetPosition(Point(center_x, center_y - 80));
-    }
+    // Create a centered content container using layout manager
+    int content_width = std::min(600, screen_width - UIStyleGuide::Spacing::XL * 2);
+    int content_height = 300;
+    Rect content_container = Rect(
+        center_x - content_width / 2,
+        center_y - content_height / 2,
+        content_width,
+        content_height
+    );
 
-    if (!m_subtitle_label) {
-        m_subtitle_label = std::make_unique<Label>("Cryptocurrency Wallet", Point(center_x, center_y - 30));
-        m_subtitle_label->SetAlignment(TextAlignment::CENTER);
-        m_subtitle_label->SetColor(Color(200, 200, 200, 255));
-    } else {
-        m_subtitle_label->SetPosition(Point(center_x, center_y - 30));
-    }
+    // Create labels with proper centering
+    m_title_label = m_ui_factory->CreateLabel("🦇 GOTHAM CITY", Point(center_x, center_y - 80), LabelStyle::TITLE);
+    m_title_label->SetAlignment(TextAlignment::CENTER);
+    m_title_label->SetColor(UIStyleGuide::Colors::GOTHAM_GOLD);
 
-    if (!m_status_label) {
-        m_status_label = std::make_unique<Label>(m_loading_status, Point(center_x, center_y + 80));
-        m_status_label->SetAlignment(TextAlignment::CENTER);
-        m_status_label->SetColor(Color(150, 150, 150, 255));
-    } else {
-        m_status_label->SetPosition(Point(center_x, center_y + 80));
-    }
+    m_subtitle_label = m_ui_factory->CreateLabel("Cryptocurrency Wallet & Node", Point(center_x, center_y - 30), LabelStyle::HEADING);
+    m_subtitle_label->SetAlignment(TextAlignment::CENTER);
+    m_subtitle_label->SetColor(UIStyleGuide::Colors::TEXT_SECONDARY);
+
+    m_status_label = m_ui_factory->CreateLabel(m_loading_status, Point(center_x, center_y + 60), LabelStyle::BODY);
+    m_status_label->SetAlignment(TextAlignment::CENTER);
+    m_status_label->SetColor(UIStyleGuide::Colors::TEXT_SECONDARY);
+    
+    // Create progress bar with responsive width and proper centering
+    int progress_width = std::min(400, screen_width - UIStyleGuide::Spacing::XL * 2);
+    int progress_height = 8;
+    Rect progress_bounds = Rect(
+        center_x - progress_width / 2, 
+        center_y + 100, 
+        progress_width, 
+        progress_height
+    );
+    
+    m_progress_bar = std::make_unique<ProgressBar>(progress_bounds);
+    m_progress_bar->SetBackgroundColor(UIStyleGuide::Colors::SURFACE_DARK);
+    m_progress_bar->SetForegroundColor(UIStyleGuide::Colors::GOTHAM_GOLD);
+    m_progress_bar->SetBorderColor(UIStyleGuide::Colors::BORDER_DARK);
+    
+    // Use layout manager to ensure proper vertical spacing
+    std::vector<LayoutItem> content_items(4);
+    
+    // Title
+    content_items[0].constraints.preferred_height = 40;
+    content_items[0].margin = Margin(UIStyleGuide::Spacing::MD);
+    content_items[0].on_bounds_changed = [this, center_x](const Rect& bounds) {
+        if (m_title_label) {
+            m_title_label->SetPosition(Point(center_x, bounds.y + bounds.h / 2));
+        }
+    };
+    
+    // Subtitle
+    content_items[1].constraints.preferred_height = 30;
+    content_items[1].margin = Margin(UIStyleGuide::Spacing::SM);
+    content_items[1].on_bounds_changed = [this, center_x](const Rect& bounds) {
+        if (m_subtitle_label) {
+            m_subtitle_label->SetPosition(Point(center_x, bounds.y + bounds.h / 2));
+        }
+    };
+    
+    // Status
+    content_items[2].constraints.preferred_height = 25;
+    content_items[2].margin = Margin(UIStyleGuide::Spacing::LG);
+    content_items[2].on_bounds_changed = [this, center_x](const Rect& bounds) {
+        if (m_status_label) {
+            m_status_label->SetPosition(Point(center_x, bounds.y + bounds.h / 2));
+        }
+    };
+    
+    // Progress bar
+    content_items[3].constraints.preferred_height = progress_height + UIStyleGuide::Spacing::SM;
+    content_items[3].margin = Margin(UIStyleGuide::Spacing::MD);
+    content_items[3].on_bounds_changed = [this, progress_width](const Rect& bounds) {
+        if (m_progress_bar) {
+            int center_x = bounds.x + bounds.w / 2;
+            Rect new_bounds = Rect(center_x - progress_width / 2, bounds.y, progress_width, 8);
+            m_progress_bar->SetBounds(new_bounds);
+        }
+    };
+    
+    // Apply vertical layout to center content properly
+    m_layout_manager->CreateVerticalLayout(content_container, content_items, 
+                                         UIStyleGuide::Spacing::MD, Alignment::CENTER);
 }
 
 void SplashScreen::HandleEvent(const SDL_Event& event)
@@ -86,7 +159,10 @@ void SplashScreen::Update(float delta_time)
 
 void SplashScreen::Render(Renderer& renderer)
 {
-    // Render background
+    // Render background with consistent theme
+    renderer.Clear(UIStyleGuide::Colors::BACKGROUND_DARK);
+    
+    // Render background effects
     RenderBackground(renderer);
     
     // Render logo area
@@ -98,7 +174,7 @@ void SplashScreen::Render(Renderer& renderer)
         // Title
         TTF_Font* title_font = font_manager->GetDefaultFont(48);
         if (title_font && m_title_label) {
-            Color title_color = m_title_label->GetColor();
+            Color title_color = UIStyleGuide::Colors::GOTHAM_GOLD;
             title_color.a = static_cast<Uint8>(255 * m_fade_alpha);
             m_title_label->SetColor(title_color);
             m_title_label->Render(renderer, title_font);
@@ -107,7 +183,7 @@ void SplashScreen::Render(Renderer& renderer)
         // Subtitle
         TTF_Font* subtitle_font = font_manager->GetDefaultFont(20);
         if (subtitle_font && m_subtitle_label) {
-            Color subtitle_color = m_subtitle_label->GetColor();
+            Color subtitle_color = UIStyleGuide::Colors::TEXT_SECONDARY;
             subtitle_color.a = static_cast<Uint8>(255 * m_fade_alpha);
             m_subtitle_label->SetColor(subtitle_color);
             m_subtitle_label->Render(renderer, subtitle_font);
@@ -116,15 +192,19 @@ void SplashScreen::Render(Renderer& renderer)
         // Status
         TTF_Font* status_font = font_manager->GetDefaultFont(16);
         if (status_font && m_status_label) {
-            Color status_color = m_status_label->GetColor();
+            Color status_color = UIStyleGuide::Colors::TEXT_SECONDARY;
             status_color.a = static_cast<Uint8>(255 * m_fade_alpha);
             m_status_label->SetColor(status_color);
+            m_status_label->SetText(m_loading_status);
             m_status_label->Render(renderer, status_font);
         }
     }
     
-    // Render loading bar
-    RenderLoadingBar(renderer);
+    // Render progress bar with consistent styling
+    if (m_progress_bar) {
+        m_progress_bar->SetProgress(m_loading_progress);
+        m_progress_bar->Render(renderer);
+    }
 }
 
 void SplashScreen::OnActivate()
@@ -174,8 +254,7 @@ void SplashScreen::UpdateLoadingProgress(float delta_time)
 
 void SplashScreen::RenderBackground(Renderer& renderer)
 {
-    // Dark gradient background
-    renderer.Clear(GetGothamDarkColor());
+    // Background already cleared with consistent theme color
     
     // Add some atmospheric effects
     int width = renderer.GetWidth();
@@ -184,7 +263,7 @@ void SplashScreen::RenderBackground(Renderer& renderer)
     // Subtle gradient overlay
     for (int y = 0; y < height; y += 4) {
         float gradient = static_cast<float>(y) / height;
-        Color line_color = GetGothamDarkColor();
+        Color line_color = UIStyleGuide::Colors::GOTHAM_DARK_BLUE;
         line_color.r = std::min(255, static_cast<int>(line_color.r + gradient * 20));
         line_color.g = std::min(255, static_cast<int>(line_color.g + gradient * 20));
         line_color.b = std::min(255, static_cast<int>(line_color.b + gradient * 30));
@@ -204,7 +283,7 @@ void SplashScreen::RenderLogo(Renderer& renderer)
     // In a real implementation, this would load an actual logo image
     
     int logo_size = static_cast<int>(100 * m_logo_scale);
-    Color logo_color = GetGothamGoldColor();
+    Color logo_color = UIStyleGuide::Colors::GOTHAM_GOLD;
     logo_color.a = static_cast<Uint8>(255 * m_fade_alpha);
     
     renderer.SetDrawColor(logo_color);
@@ -252,7 +331,7 @@ void SplashScreen::RenderLoadingBar(Renderer& renderer)
     renderer.FillRect(bg_rect);
     
     // Progress bar
-    Color progress_color = GetGothamGoldColor();
+    Color progress_color = UIStyleGuide::Colors::GOTHAM_GOLD;
     progress_color.a = static_cast<Uint8>(255 * m_fade_alpha);
     renderer.SetDrawColor(progress_color);
     

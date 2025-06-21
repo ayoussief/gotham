@@ -10,6 +10,9 @@
 #include "../ui/label.h"
 #include "../ui/panel.h"
 #include "../ui/text_input.h"
+#include "../ui/ui_factory.h"
+#include "../ui/layout_manager.h"
+#include "../ui/ui_style_guide.h"
 #include <memory>
 
 class ReceiveScreen : public Screen
@@ -24,6 +27,10 @@ public:
     void OnResize(int new_width, int new_height) override;
 
 private:
+    // UI Systems
+    std::unique_ptr<UIFactory> m_ui_factory;
+    std::unique_ptr<LayoutManager> m_layout_manager;
+    
     // UI Components
     std::unique_ptr<Panel> m_header_panel;
     std::unique_ptr<Panel> m_address_panel;
@@ -57,8 +64,8 @@ private:
     
     void CreateLayout();
     void CreateHeaderPanel();
-    void CreateAddressPanel();
-    void CreateQRPanel();
+    void CreateAddressPanel(int y, int height);
+    void CreateQRPanel(int y, int height);
     void GenerateNewAddress();
     void SetupButtonCallbacks();
     
@@ -68,8 +75,6 @@ private:
     void OnNewAddressClicked();
     
     // Helper methods
-    Color GetGothamGoldColor() const;
-    Color GetGothamDarkColor() const;
 };
 
 #endif // GOTHAM_SDL2_SCREENS_RECEIVE_SCREEN_H

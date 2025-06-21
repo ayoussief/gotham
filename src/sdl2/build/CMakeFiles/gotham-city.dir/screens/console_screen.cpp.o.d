@@ -239,7 +239,8 @@ CMakeFiles/gotham-city.dir/screens/console_screen.cpp.o: \
  /usr/include/SDL2/SDL_system.h /usr/include/SDL2/SDL_timer.h \
  /usr/include/SDL2/SDL_version.h /usr/include/SDL2/SDL_locale.h \
  /usr/include/SDL2/SDL_misc.h \
- /home/amr/gotham/src/sdl2/screens/../renderer.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/button.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/../renderer.h \
  /usr/include/SDL2/SDL_ttf.h /usr/include/SDL2/SDL.h \
  /usr/include/c++/13/string /usr/include/c++/13/bits/stringfwd.h \
  /usr/include/c++/13/bits/memoryfwd.h \
@@ -311,13 +312,40 @@ CMakeFiles/gotham-city.dir/screens/console_screen.cpp.o: \
  /usr/include/c++/13/bits/atomic_lockfree_defines.h \
  /usr/include/c++/13/backward/auto_ptr.h \
  /usr/include/c++/13/pstl/glue_memory_defs.h \
- /usr/include/c++/13/pstl/execution_defs.h \
- /home/amr/gotham/src/sdl2/screens/../gotham_city_gui.h \
- /usr/include/c++/13/vector /usr/include/c++/13/bits/stl_vector.h \
+ /usr/include/c++/13/pstl/execution_defs.h /usr/include/c++/13/functional \
+ /usr/include/c++/13/bits/std_function.h \
+ /usr/include/c++/13/unordered_map \
+ /usr/include/c++/13/bits/unordered_map.h \
+ /usr/include/c++/13/bits/hashtable.h \
+ /usr/include/c++/13/bits/hashtable_policy.h \
+ /usr/include/c++/13/bits/enable_special_members.h \
+ /usr/include/c++/13/bits/node_handle.h \
+ /usr/include/c++/13/bits/erase_if.h /usr/include/c++/13/vector \
+ /usr/include/c++/13/bits/stl_vector.h \
  /usr/include/c++/13/bits/stl_bvector.h \
- /usr/include/c++/13/bits/vector.tcc /usr/include/c++/13/iostream \
- /usr/include/c++/13/ostream /usr/include/c++/13/ios \
- /usr/include/c++/13/bits/ios_base.h \
+ /usr/include/c++/13/bits/vector.tcc /usr/include/c++/13/array \
+ /usr/include/c++/13/compare /usr/include/c++/13/bits/stl_algo.h \
+ /usr/include/c++/13/bits/algorithmfwd.h \
+ /usr/include/c++/13/bits/stl_heap.h \
+ /usr/include/c++/13/bits/uniform_int_dist.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/label.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/panel.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/text_input.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/ui_factory.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/button.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/label.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/panel.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/text_input.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/progress_bar.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/../utils/theme.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/../utils/../renderer.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/layout_manager.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/ui_style_guide.h \
+ /home/amr/gotham/src/sdl2/screens/../renderer.h \
+ /home/amr/gotham/src/sdl2/screens/../gotham_city_gui.h \
+ /home/amr/gotham/src/sdl2/screens/../utils/font_manager.h \
+ /usr/include/c++/13/iostream /usr/include/c++/13/ostream \
+ /usr/include/c++/13/ios /usr/include/c++/13/bits/ios_base.h \
  /usr/include/c++/13/bits/locale_classes.h \
  /usr/include/c++/13/bits/locale_classes.tcc \
  /usr/include/c++/13/system_error \

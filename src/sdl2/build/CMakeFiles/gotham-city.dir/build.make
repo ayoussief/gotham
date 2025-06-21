@@ -223,10 +223,38 @@ CMakeFiles/gotham-city.dir/ui/progress_bar.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/gotham-city.dir/ui/progress_bar.cpp.s"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/amr/gotham/src/sdl2/ui/progress_bar.cpp -o CMakeFiles/gotham-city.dir/ui/progress_bar.cpp.s
 
+CMakeFiles/gotham-city.dir/ui/ui_factory.cpp.o: CMakeFiles/gotham-city.dir/flags.make
+CMakeFiles/gotham-city.dir/ui/ui_factory.cpp.o: /home/amr/gotham/src/sdl2/ui/ui_factory.cpp
+CMakeFiles/gotham-city.dir/ui/ui_factory.cpp.o: CMakeFiles/gotham-city.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object CMakeFiles/gotham-city.dir/ui/ui_factory.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/gotham-city.dir/ui/ui_factory.cpp.o -MF CMakeFiles/gotham-city.dir/ui/ui_factory.cpp.o.d -o CMakeFiles/gotham-city.dir/ui/ui_factory.cpp.o -c /home/amr/gotham/src/sdl2/ui/ui_factory.cpp
+
+CMakeFiles/gotham-city.dir/ui/ui_factory.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/gotham-city.dir/ui/ui_factory.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/amr/gotham/src/sdl2/ui/ui_factory.cpp > CMakeFiles/gotham-city.dir/ui/ui_factory.cpp.i
+
+CMakeFiles/gotham-city.dir/ui/ui_factory.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/gotham-city.dir/ui/ui_factory.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/amr/gotham/src/sdl2/ui/ui_factory.cpp -o CMakeFiles/gotham-city.dir/ui/ui_factory.cpp.s
+
+CMakeFiles/gotham-city.dir/ui/layout_manager.cpp.o: CMakeFiles/gotham-city.dir/flags.make
+CMakeFiles/gotham-city.dir/ui/layout_manager.cpp.o: /home/amr/gotham/src/sdl2/ui/layout_manager.cpp
+CMakeFiles/gotham-city.dir/ui/layout_manager.cpp.o: CMakeFiles/gotham-city.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Building CXX object CMakeFiles/gotham-city.dir/ui/layout_manager.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/gotham-city.dir/ui/layout_manager.cpp.o -MF CMakeFiles/gotham-city.dir/ui/layout_manager.cpp.o.d -o CMakeFiles/gotham-city.dir/ui/layout_manager.cpp.o -c /home/amr/gotham/src/sdl2/ui/layout_manager.cpp
+
+CMakeFiles/gotham-city.dir/ui/layout_manager.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/gotham-city.dir/ui/layout_manager.cpp.i"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /home/amr/gotham/src/sdl2/ui/layout_manager.cpp > CMakeFiles/gotham-city.dir/ui/layout_manager.cpp.i
+
+CMakeFiles/gotham-city.dir/ui/layout_manager.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/gotham-city.dir/ui/layout_manager.cpp.s"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /home/amr/gotham/src/sdl2/ui/layout_manager.cpp -o CMakeFiles/gotham-city.dir/ui/layout_manager.cpp.s
+
 CMakeFiles/gotham-city.dir/screens/splash_screen.cpp.o: CMakeFiles/gotham-city.dir/flags.make
 CMakeFiles/gotham-city.dir/screens/splash_screen.cpp.o: /home/amr/gotham/src/sdl2/screens/splash_screen.cpp
 CMakeFiles/gotham-city.dir/screens/splash_screen.cpp.o: CMakeFiles/gotham-city.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_12) "Building CXX object CMakeFiles/gotham-city.dir/screens/splash_screen.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_14) "Building CXX object CMakeFiles/gotham-city.dir/screens/splash_screen.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/gotham-city.dir/screens/splash_screen.cpp.o -MF CMakeFiles/gotham-city.dir/screens/splash_screen.cpp.o.d -o CMakeFiles/gotham-city.dir/screens/splash_screen.cpp.o -c /home/amr/gotham/src/sdl2/screens/splash_screen.cpp
 
 CMakeFiles/gotham-city.dir/screens/splash_screen.cpp.i: cmake_force
@@ -240,7 +268,7 @@ CMakeFiles/gotham-city.dir/screens/splash_screen.cpp.s: cmake_force
 CMakeFiles/gotham-city.dir/screens/main_screen.cpp.o: CMakeFiles/gotham-city.dir/flags.make
 CMakeFiles/gotham-city.dir/screens/main_screen.cpp.o: /home/amr/gotham/src/sdl2/screens/main_screen.cpp
 CMakeFiles/gotham-city.dir/screens/main_screen.cpp.o: CMakeFiles/gotham-city.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_13) "Building CXX object CMakeFiles/gotham-city.dir/screens/main_screen.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object CMakeFiles/gotham-city.dir/screens/main_screen.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/gotham-city.dir/screens/main_screen.cpp.o -MF CMakeFiles/gotham-city.dir/screens/main_screen.cpp.o.d -o CMakeFiles/gotham-city.dir/screens/main_screen.cpp.o -c /home/amr/gotham/src/sdl2/screens/main_screen.cpp
 
 CMakeFiles/gotham-city.dir/screens/main_screen.cpp.i: cmake_force
@@ -254,7 +282,7 @@ CMakeFiles/gotham-city.dir/screens/main_screen.cpp.s: cmake_force
 CMakeFiles/gotham-city.dir/screens/wallet_screen.cpp.o: CMakeFiles/gotham-city.dir/flags.make
 CMakeFiles/gotham-city.dir/screens/wallet_screen.cpp.o: /home/amr/gotham/src/sdl2/screens/wallet_screen.cpp
 CMakeFiles/gotham-city.dir/screens/wallet_screen.cpp.o: CMakeFiles/gotham-city.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_14) "Building CXX object CMakeFiles/gotham-city.dir/screens/wallet_screen.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building CXX object CMakeFiles/gotham-city.dir/screens/wallet_screen.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/gotham-city.dir/screens/wallet_screen.cpp.o -MF CMakeFiles/gotham-city.dir/screens/wallet_screen.cpp.o.d -o CMakeFiles/gotham-city.dir/screens/wallet_screen.cpp.o -c /home/amr/gotham/src/sdl2/screens/wallet_screen.cpp
 
 CMakeFiles/gotham-city.dir/screens/wallet_screen.cpp.i: cmake_force
@@ -268,7 +296,7 @@ CMakeFiles/gotham-city.dir/screens/wallet_screen.cpp.s: cmake_force
 CMakeFiles/gotham-city.dir/screens/send_screen.cpp.o: CMakeFiles/gotham-city.dir/flags.make
 CMakeFiles/gotham-city.dir/screens/send_screen.cpp.o: /home/amr/gotham/src/sdl2/screens/send_screen.cpp
 CMakeFiles/gotham-city.dir/screens/send_screen.cpp.o: CMakeFiles/gotham-city.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object CMakeFiles/gotham-city.dir/screens/send_screen.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building CXX object CMakeFiles/gotham-city.dir/screens/send_screen.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/gotham-city.dir/screens/send_screen.cpp.o -MF CMakeFiles/gotham-city.dir/screens/send_screen.cpp.o.d -o CMakeFiles/gotham-city.dir/screens/send_screen.cpp.o -c /home/amr/gotham/src/sdl2/screens/send_screen.cpp
 
 CMakeFiles/gotham-city.dir/screens/send_screen.cpp.i: cmake_force
@@ -282,7 +310,7 @@ CMakeFiles/gotham-city.dir/screens/send_screen.cpp.s: cmake_force
 CMakeFiles/gotham-city.dir/screens/receive_screen.cpp.o: CMakeFiles/gotham-city.dir/flags.make
 CMakeFiles/gotham-city.dir/screens/receive_screen.cpp.o: /home/amr/gotham/src/sdl2/screens/receive_screen.cpp
 CMakeFiles/gotham-city.dir/screens/receive_screen.cpp.o: CMakeFiles/gotham-city.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building CXX object CMakeFiles/gotham-city.dir/screens/receive_screen.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Building CXX object CMakeFiles/gotham-city.dir/screens/receive_screen.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/gotham-city.dir/screens/receive_screen.cpp.o -MF CMakeFiles/gotham-city.dir/screens/receive_screen.cpp.o.d -o CMakeFiles/gotham-city.dir/screens/receive_screen.cpp.o -c /home/amr/gotham/src/sdl2/screens/receive_screen.cpp
 
 CMakeFiles/gotham-city.dir/screens/receive_screen.cpp.i: cmake_force
@@ -296,7 +324,7 @@ CMakeFiles/gotham-city.dir/screens/receive_screen.cpp.s: cmake_force
 CMakeFiles/gotham-city.dir/screens/transactions_screen.cpp.o: CMakeFiles/gotham-city.dir/flags.make
 CMakeFiles/gotham-city.dir/screens/transactions_screen.cpp.o: /home/amr/gotham/src/sdl2/screens/transactions_screen.cpp
 CMakeFiles/gotham-city.dir/screens/transactions_screen.cpp.o: CMakeFiles/gotham-city.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Building CXX object CMakeFiles/gotham-city.dir/screens/transactions_screen.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_19) "Building CXX object CMakeFiles/gotham-city.dir/screens/transactions_screen.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/gotham-city.dir/screens/transactions_screen.cpp.o -MF CMakeFiles/gotham-city.dir/screens/transactions_screen.cpp.o.d -o CMakeFiles/gotham-city.dir/screens/transactions_screen.cpp.o -c /home/amr/gotham/src/sdl2/screens/transactions_screen.cpp
 
 CMakeFiles/gotham-city.dir/screens/transactions_screen.cpp.i: cmake_force
@@ -310,7 +338,7 @@ CMakeFiles/gotham-city.dir/screens/transactions_screen.cpp.s: cmake_force
 CMakeFiles/gotham-city.dir/screens/settings_screen.cpp.o: CMakeFiles/gotham-city.dir/flags.make
 CMakeFiles/gotham-city.dir/screens/settings_screen.cpp.o: /home/amr/gotham/src/sdl2/screens/settings_screen.cpp
 CMakeFiles/gotham-city.dir/screens/settings_screen.cpp.o: CMakeFiles/gotham-city.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_18) "Building CXX object CMakeFiles/gotham-city.dir/screens/settings_screen.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_20) "Building CXX object CMakeFiles/gotham-city.dir/screens/settings_screen.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/gotham-city.dir/screens/settings_screen.cpp.o -MF CMakeFiles/gotham-city.dir/screens/settings_screen.cpp.o.d -o CMakeFiles/gotham-city.dir/screens/settings_screen.cpp.o -c /home/amr/gotham/src/sdl2/screens/settings_screen.cpp
 
 CMakeFiles/gotham-city.dir/screens/settings_screen.cpp.i: cmake_force
@@ -324,7 +352,7 @@ CMakeFiles/gotham-city.dir/screens/settings_screen.cpp.s: cmake_force
 CMakeFiles/gotham-city.dir/screens/console_screen.cpp.o: CMakeFiles/gotham-city.dir/flags.make
 CMakeFiles/gotham-city.dir/screens/console_screen.cpp.o: /home/amr/gotham/src/sdl2/screens/console_screen.cpp
 CMakeFiles/gotham-city.dir/screens/console_screen.cpp.o: CMakeFiles/gotham-city.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_19) "Building CXX object CMakeFiles/gotham-city.dir/screens/console_screen.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_21) "Building CXX object CMakeFiles/gotham-city.dir/screens/console_screen.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/gotham-city.dir/screens/console_screen.cpp.o -MF CMakeFiles/gotham-city.dir/screens/console_screen.cpp.o.d -o CMakeFiles/gotham-city.dir/screens/console_screen.cpp.o -c /home/amr/gotham/src/sdl2/screens/console_screen.cpp
 
 CMakeFiles/gotham-city.dir/screens/console_screen.cpp.i: cmake_force
@@ -338,7 +366,7 @@ CMakeFiles/gotham-city.dir/screens/console_screen.cpp.s: cmake_force
 CMakeFiles/gotham-city.dir/utils/theme.cpp.o: CMakeFiles/gotham-city.dir/flags.make
 CMakeFiles/gotham-city.dir/utils/theme.cpp.o: /home/amr/gotham/src/sdl2/utils/theme.cpp
 CMakeFiles/gotham-city.dir/utils/theme.cpp.o: CMakeFiles/gotham-city.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_20) "Building CXX object CMakeFiles/gotham-city.dir/utils/theme.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_22) "Building CXX object CMakeFiles/gotham-city.dir/utils/theme.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/gotham-city.dir/utils/theme.cpp.o -MF CMakeFiles/gotham-city.dir/utils/theme.cpp.o.d -o CMakeFiles/gotham-city.dir/utils/theme.cpp.o -c /home/amr/gotham/src/sdl2/utils/theme.cpp
 
 CMakeFiles/gotham-city.dir/utils/theme.cpp.i: cmake_force
@@ -352,7 +380,7 @@ CMakeFiles/gotham-city.dir/utils/theme.cpp.s: cmake_force
 CMakeFiles/gotham-city.dir/utils/font_manager.cpp.o: CMakeFiles/gotham-city.dir/flags.make
 CMakeFiles/gotham-city.dir/utils/font_manager.cpp.o: /home/amr/gotham/src/sdl2/utils/font_manager.cpp
 CMakeFiles/gotham-city.dir/utils/font_manager.cpp.o: CMakeFiles/gotham-city.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_21) "Building CXX object CMakeFiles/gotham-city.dir/utils/font_manager.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_23) "Building CXX object CMakeFiles/gotham-city.dir/utils/font_manager.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/gotham-city.dir/utils/font_manager.cpp.o -MF CMakeFiles/gotham-city.dir/utils/font_manager.cpp.o.d -o CMakeFiles/gotham-city.dir/utils/font_manager.cpp.o -c /home/amr/gotham/src/sdl2/utils/font_manager.cpp
 
 CMakeFiles/gotham-city.dir/utils/font_manager.cpp.i: cmake_force
@@ -366,7 +394,7 @@ CMakeFiles/gotham-city.dir/utils/font_manager.cpp.s: cmake_force
 CMakeFiles/gotham-city.dir/utils/texture_manager.cpp.o: CMakeFiles/gotham-city.dir/flags.make
 CMakeFiles/gotham-city.dir/utils/texture_manager.cpp.o: /home/amr/gotham/src/sdl2/utils/texture_manager.cpp
 CMakeFiles/gotham-city.dir/utils/texture_manager.cpp.o: CMakeFiles/gotham-city.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_22) "Building CXX object CMakeFiles/gotham-city.dir/utils/texture_manager.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_24) "Building CXX object CMakeFiles/gotham-city.dir/utils/texture_manager.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/gotham-city.dir/utils/texture_manager.cpp.o -MF CMakeFiles/gotham-city.dir/utils/texture_manager.cpp.o.d -o CMakeFiles/gotham-city.dir/utils/texture_manager.cpp.o -c /home/amr/gotham/src/sdl2/utils/texture_manager.cpp
 
 CMakeFiles/gotham-city.dir/utils/texture_manager.cpp.i: cmake_force
@@ -380,7 +408,7 @@ CMakeFiles/gotham-city.dir/utils/texture_manager.cpp.s: cmake_force
 CMakeFiles/gotham-city.dir/utils/animation.cpp.o: CMakeFiles/gotham-city.dir/flags.make
 CMakeFiles/gotham-city.dir/utils/animation.cpp.o: /home/amr/gotham/src/sdl2/utils/animation.cpp
 CMakeFiles/gotham-city.dir/utils/animation.cpp.o: CMakeFiles/gotham-city.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_23) "Building CXX object CMakeFiles/gotham-city.dir/utils/animation.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_25) "Building CXX object CMakeFiles/gotham-city.dir/utils/animation.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/gotham-city.dir/utils/animation.cpp.o -MF CMakeFiles/gotham-city.dir/utils/animation.cpp.o.d -o CMakeFiles/gotham-city.dir/utils/animation.cpp.o -c /home/amr/gotham/src/sdl2/utils/animation.cpp
 
 CMakeFiles/gotham-city.dir/utils/animation.cpp.i: cmake_force
@@ -394,7 +422,7 @@ CMakeFiles/gotham-city.dir/utils/animation.cpp.s: cmake_force
 CMakeFiles/gotham-city.dir/wallet/wallet_manager.cpp.o: CMakeFiles/gotham-city.dir/flags.make
 CMakeFiles/gotham-city.dir/wallet/wallet_manager.cpp.o: /home/amr/gotham/src/sdl2/wallet/wallet_manager.cpp
 CMakeFiles/gotham-city.dir/wallet/wallet_manager.cpp.o: CMakeFiles/gotham-city.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_24) "Building CXX object CMakeFiles/gotham-city.dir/wallet/wallet_manager.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_26) "Building CXX object CMakeFiles/gotham-city.dir/wallet/wallet_manager.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/gotham-city.dir/wallet/wallet_manager.cpp.o -MF CMakeFiles/gotham-city.dir/wallet/wallet_manager.cpp.o.d -o CMakeFiles/gotham-city.dir/wallet/wallet_manager.cpp.o -c /home/amr/gotham/src/sdl2/wallet/wallet_manager.cpp
 
 CMakeFiles/gotham-city.dir/wallet/wallet_manager.cpp.i: cmake_force
@@ -408,7 +436,7 @@ CMakeFiles/gotham-city.dir/wallet/wallet_manager.cpp.s: cmake_force
 CMakeFiles/gotham-city.dir/stubs/common/args.cpp.o: CMakeFiles/gotham-city.dir/flags.make
 CMakeFiles/gotham-city.dir/stubs/common/args.cpp.o: /home/amr/gotham/src/sdl2/stubs/common/args.cpp
 CMakeFiles/gotham-city.dir/stubs/common/args.cpp.o: CMakeFiles/gotham-city.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_25) "Building CXX object CMakeFiles/gotham-city.dir/stubs/common/args.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_27) "Building CXX object CMakeFiles/gotham-city.dir/stubs/common/args.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/gotham-city.dir/stubs/common/args.cpp.o -MF CMakeFiles/gotham-city.dir/stubs/common/args.cpp.o.d -o CMakeFiles/gotham-city.dir/stubs/common/args.cpp.o -c /home/amr/gotham/src/sdl2/stubs/common/args.cpp
 
 CMakeFiles/gotham-city.dir/stubs/common/args.cpp.i: cmake_force
@@ -422,7 +450,7 @@ CMakeFiles/gotham-city.dir/stubs/common/args.cpp.s: cmake_force
 CMakeFiles/gotham-city.dir/stubs/common/init.cpp.o: CMakeFiles/gotham-city.dir/flags.make
 CMakeFiles/gotham-city.dir/stubs/common/init.cpp.o: /home/amr/gotham/src/sdl2/stubs/common/init.cpp
 CMakeFiles/gotham-city.dir/stubs/common/init.cpp.o: CMakeFiles/gotham-city.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_26) "Building CXX object CMakeFiles/gotham-city.dir/stubs/common/init.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_28) "Building CXX object CMakeFiles/gotham-city.dir/stubs/common/init.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/gotham-city.dir/stubs/common/init.cpp.o -MF CMakeFiles/gotham-city.dir/stubs/common/init.cpp.o.d -o CMakeFiles/gotham-city.dir/stubs/common/init.cpp.o -c /home/amr/gotham/src/sdl2/stubs/common/init.cpp
 
 CMakeFiles/gotham-city.dir/stubs/common/init.cpp.i: cmake_force
@@ -436,7 +464,7 @@ CMakeFiles/gotham-city.dir/stubs/common/init.cpp.s: cmake_force
 CMakeFiles/gotham-city.dir/stubs/common/system.cpp.o: CMakeFiles/gotham-city.dir/flags.make
 CMakeFiles/gotham-city.dir/stubs/common/system.cpp.o: /home/amr/gotham/src/sdl2/stubs/common/system.cpp
 CMakeFiles/gotham-city.dir/stubs/common/system.cpp.o: CMakeFiles/gotham-city.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_27) "Building CXX object CMakeFiles/gotham-city.dir/stubs/common/system.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_29) "Building CXX object CMakeFiles/gotham-city.dir/stubs/common/system.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/gotham-city.dir/stubs/common/system.cpp.o -MF CMakeFiles/gotham-city.dir/stubs/common/system.cpp.o.d -o CMakeFiles/gotham-city.dir/stubs/common/system.cpp.o -c /home/amr/gotham/src/sdl2/stubs/common/system.cpp
 
 CMakeFiles/gotham-city.dir/stubs/common/system.cpp.i: cmake_force
@@ -450,7 +478,7 @@ CMakeFiles/gotham-city.dir/stubs/common/system.cpp.s: cmake_force
 CMakeFiles/gotham-city.dir/stubs/interfaces/node.cpp.o: CMakeFiles/gotham-city.dir/flags.make
 CMakeFiles/gotham-city.dir/stubs/interfaces/node.cpp.o: /home/amr/gotham/src/sdl2/stubs/interfaces/node.cpp
 CMakeFiles/gotham-city.dir/stubs/interfaces/node.cpp.o: CMakeFiles/gotham-city.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_28) "Building CXX object CMakeFiles/gotham-city.dir/stubs/interfaces/node.cpp.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_30) "Building CXX object CMakeFiles/gotham-city.dir/stubs/interfaces/node.cpp.o"
 	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/gotham-city.dir/stubs/interfaces/node.cpp.o -MF CMakeFiles/gotham-city.dir/stubs/interfaces/node.cpp.o.d -o CMakeFiles/gotham-city.dir/stubs/interfaces/node.cpp.o -c /home/amr/gotham/src/sdl2/stubs/interfaces/node.cpp
 
 CMakeFiles/gotham-city.dir/stubs/interfaces/node.cpp.i: cmake_force
@@ -474,6 +502,8 @@ gotham__city_OBJECTS = \
 "CMakeFiles/gotham-city.dir/ui/panel.cpp.o" \
 "CMakeFiles/gotham-city.dir/ui/text_input.cpp.o" \
 "CMakeFiles/gotham-city.dir/ui/progress_bar.cpp.o" \
+"CMakeFiles/gotham-city.dir/ui/ui_factory.cpp.o" \
+"CMakeFiles/gotham-city.dir/ui/layout_manager.cpp.o" \
 "CMakeFiles/gotham-city.dir/screens/splash_screen.cpp.o" \
 "CMakeFiles/gotham-city.dir/screens/main_screen.cpp.o" \
 "CMakeFiles/gotham-city.dir/screens/wallet_screen.cpp.o" \
@@ -506,6 +536,8 @@ gotham-city: CMakeFiles/gotham-city.dir/ui/label.cpp.o
 gotham-city: CMakeFiles/gotham-city.dir/ui/panel.cpp.o
 gotham-city: CMakeFiles/gotham-city.dir/ui/text_input.cpp.o
 gotham-city: CMakeFiles/gotham-city.dir/ui/progress_bar.cpp.o
+gotham-city: CMakeFiles/gotham-city.dir/ui/ui_factory.cpp.o
+gotham-city: CMakeFiles/gotham-city.dir/ui/layout_manager.cpp.o
 gotham-city: CMakeFiles/gotham-city.dir/screens/splash_screen.cpp.o
 gotham-city: CMakeFiles/gotham-city.dir/screens/main_screen.cpp.o
 gotham-city: CMakeFiles/gotham-city.dir/screens/wallet_screen.cpp.o
@@ -525,7 +557,7 @@ gotham-city: CMakeFiles/gotham-city.dir/stubs/common/system.cpp.o
 gotham-city: CMakeFiles/gotham-city.dir/stubs/interfaces/node.cpp.o
 gotham-city: CMakeFiles/gotham-city.dir/build.make
 gotham-city: CMakeFiles/gotham-city.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_29) "Linking CXX executable gotham-city"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/home/amr/gotham/src/sdl2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_31) "Linking CXX executable gotham-city"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/gotham-city.dir/link.txt --verbose=$(VERBOSE)
 
 # Rule to build all files generated by this target.

@@ -13,6 +13,11 @@
 
 SendScreen::SendScreen(GothamCityGUI& gui) : Screen(gui)
 {
+    // Initialize UI systems
+    if (auto* theme_manager = m_gui.GetThemeManager()) {
+        m_ui_factory = std::make_unique<UIFactory>(*theme_manager);
+    }
+    m_layout_manager = std::make_unique<LayoutManager>();
 }
 
 bool SendScreen::Initialize()
@@ -76,8 +81,8 @@ void SendScreen::Update(float delta_time)
 
 void SendScreen::Render(Renderer& renderer)
 {
-    // Render background
-    renderer.Clear(GetGothamDarkColor());
+    // Render background with consistent theme
+    renderer.Clear(UIStyleGuide::Colors::BACKGROUND_DARK);
     
     // Render UI panels
     if (m_header_panel) m_header_panel->Render(renderer);
@@ -175,125 +180,308 @@ void SendScreen::OnResize(int new_width, int new_height)
 
 void SendScreen::CreateLayout()
 {
+    if (!m_ui_factory || !m_layout_manager) return;
+    
+    int screen_width = m_gui.GetRenderer()->GetWidth();
+    int screen_height = m_gui.GetRenderer()->GetHeight();
+    
+    // Calculate panel positions with proper spacing
+    int header_height = UIStyleGuide::Dimensions::HEADER_HEIGHT;
+    int current_y = header_height + UIStyleGuide::Spacing::LG;
+    int panel_spacing = UIStyleGuide::Spacing::LG;
+    
     CreateHeaderPanel();
-    CreateFormPanel();
-    CreatePreviewPanel();
+    
+    // Form panel
+    int form_height = 350;
+    CreateFormPanel(current_y, form_height);
+    current_y += form_height + panel_spacing;
+    
+    // Preview panel - use remaining space
+    int remaining_height = screen_height - current_y - UIStyleGuide::Spacing::LG;
+    CreatePreviewPanel(current_y, std::max(200, remaining_height));
 }
 
 void SendScreen::CreateHeaderPanel()
 {
+    if (!m_ui_factory || !m_layout_manager) return;
+    
     int width = m_gui.GetRenderer()->GetWidth();
     
-    m_header_panel = std::make_unique<Panel>(Rect(0, 0, width, 80));
-    m_header_panel->SetBackgroundColor(GetGothamDarkColor());
+    // Create header panel with consistent styling
+    Rect header_bounds = Rect(0, 0, width, UIStyleGuide::Dimensions::HEADER_HEIGHT);
+    m_header_panel = m_ui_factory->CreatePanel(header_bounds, PanelStyle::HEADER);
     
-    m_title_label = std::make_unique<Label>("📤 Send Bitcoin", Point(50, 30));
-    m_title_label->SetColor(GetGothamGoldColor());
+    // Create header components with factory
+    m_title_label = m_ui_factory->CreateLabel("📤 Send Gotham Coin", Point(0, 0), LabelStyle::TITLE);
+    m_back_button = m_ui_factory->CreateButton("← Back", Rect(0, 0, 100, 40), ButtonStyle::SECONDARY);
     
-    m_back_button = std::make_unique<Button>("← Back", Rect(width - 120, 20, 100, 40));
-    m_back_button->SetColors(Color(60, 60, 70, 255), Color(80, 80, 90, 255), Color(40, 40, 50, 255));
-    m_back_button->SetTextColor(Color(255, 255, 255, 255));
+    // Setup layout for header components
+    std::vector<LayoutItem> header_items(2);
+    
+    // Title item
+    header_items[0].constraints.preferred_width = 300;
+    header_items[0].margin = Margin(0, UIStyleGuide::Spacing::LG);
+    header_items[0].on_bounds_changed = [this](const Rect& bounds) {
+        if (m_title_label) {
+            m_title_label->SetPosition(Point(bounds.x, bounds.y + bounds.h / 2 - 12));
+        }
+    };
+    
+    // Back button item
+    header_items[1].constraints.preferred_width = 100;
+    header_items[1].margin = Margin(UIStyleGuide::Spacing::SM);
+    header_items[1].on_bounds_changed = [this](const Rect& bounds) {
+        if (m_back_button) {
+            m_back_button->SetBounds(bounds);
+        }
+    };
+    
+    // Apply horizontal layout for header
+    m_layout_manager->CreateHorizontalLayout(header_bounds, header_items, 
+                                           UIStyleGuide::Spacing::MD, Alignment::CENTER);
 }
 
-void SendScreen::CreateFormPanel()
+void SendScreen::CreateFormPanel(int y, int height)
 {
+    if (!m_ui_factory || !m_layout_manager) return;
+    
     int width = m_gui.GetRenderer()->GetWidth();
-    int form_width = std::min(600, width - 40);
+    int form_width = std::min(600, width - 2 * UIStyleGuide::Spacing::LG);
     int form_x = (width - form_width) / 2;
     
-    m_form_panel = std::make_unique<Panel>(Rect(form_x, 100, form_width, 300));
-    m_form_panel->SetBackgroundColor(Color(25, 25, 35, 255));
-    m_form_panel->SetBorderColor(Color(60, 60, 70, 255));
+    // Create form panel with consistent styling
+    Rect form_bounds = Rect(form_x, y, form_width, height);
+    m_form_panel = m_ui_factory->CreatePanel(form_bounds, PanelStyle::CARD);
     
-    int input_width = form_width - 60;
-    int y_pos = 120;
+    // Create form components with factory
+    m_address_label = m_ui_factory->CreateLabel("Recipient Address:", Point(0, 0), LabelStyle::BODY);
+    m_address_input = std::make_unique<TextInput>(Rect(0, 0, form_width - 2 * UIStyleGuide::Spacing::LG, UIStyleGuide::Dimensions::INPUT_HEIGHT));
+    m_address_input->SetPlaceholder("Enter Gotham Coin address...");
+    m_address_input->SetBackgroundColor(UIStyleGuide::Colors::SURFACE_DARK);
+    m_address_input->SetBorderColor(UIStyleGuide::Colors::BORDER_DARK);
+    m_address_input->SetTextColor(UIStyleGuide::Colors::TEXT_PRIMARY);
     
-    // Address field
-    m_address_label = std::make_unique<Label>("Recipient Address:", Point(form_x + 20, y_pos));
-    m_address_label->SetColor(Color(255, 255, 255, 255));
-    y_pos += 25;
-    
-    m_address_input = std::make_unique<TextInput>(Rect(form_x + 30, y_pos, input_width, 30));
-    m_address_input->SetPlaceholder("Enter Bitcoin address...");
-    y_pos += 45;
-    
-    // Amount field
-    m_amount_label = std::make_unique<Label>("Amount (BTC):", Point(form_x + 20, y_pos));
-    m_amount_label->SetColor(Color(255, 255, 255, 255));
-    y_pos += 25;
-    
-    m_amount_input = std::make_unique<TextInput>(Rect(form_x + 30, y_pos, input_width / 2 - 10, 30));
+    m_amount_label = m_ui_factory->CreateLabel("Amount (GTC):", Point(0, 0), LabelStyle::BODY);
+    m_amount_input = std::make_unique<TextInput>(Rect(0, 0, (form_width - 3 * UIStyleGuide::Spacing::LG) / 2, UIStyleGuide::Dimensions::INPUT_HEIGHT));
     m_amount_input->SetPlaceholder("0.00000000");
+    m_amount_input->SetBackgroundColor(UIStyleGuide::Colors::SURFACE_DARK);
+    m_amount_input->SetBorderColor(UIStyleGuide::Colors::BORDER_DARK);
+    m_amount_input->SetTextColor(UIStyleGuide::Colors::TEXT_PRIMARY);
     
-    // Fee field
-    m_fee_label = std::make_unique<Label>("Fee (BTC):", Point(form_x + input_width / 2 + 40, y_pos - 25));
-    m_fee_label->SetColor(Color(255, 255, 255, 255));
-    
-    m_fee_input = std::make_unique<TextInput>(Rect(form_x + input_width / 2 + 50, y_pos, input_width / 2 - 10, 30));
+    m_fee_label = m_ui_factory->CreateLabel("Fee (GTC):", Point(0, 0), LabelStyle::BODY);
+    m_fee_input = std::make_unique<TextInput>(Rect(0, 0, (form_width - 3 * UIStyleGuide::Spacing::LG) / 2, UIStyleGuide::Dimensions::INPUT_HEIGHT));
     m_fee_input->SetPlaceholder("0.00001000");
     m_fee_input->SetText("0.00001000"); // Default fee
-    y_pos += 45;
+    m_fee_input->SetBackgroundColor(UIStyleGuide::Colors::SURFACE_DARK);
+    m_fee_input->SetBorderColor(UIStyleGuide::Colors::BORDER_DARK);
+    m_fee_input->SetTextColor(UIStyleGuide::Colors::TEXT_PRIMARY);
     
-    // Label field
-    m_label_label = std::make_unique<Label>("Label (optional):", Point(form_x + 20, y_pos));
-    m_label_label->SetColor(Color(255, 255, 255, 255));
-    y_pos += 25;
-    
-    m_label_input = std::make_unique<TextInput>(Rect(form_x + 30, y_pos, input_width, 30));
+    m_label_label = m_ui_factory->CreateLabel("Label (optional):", Point(0, 0), LabelStyle::BODY);
+    m_label_input = std::make_unique<TextInput>(Rect(0, 0, form_width - 2 * UIStyleGuide::Spacing::LG, UIStyleGuide::Dimensions::INPUT_HEIGHT));
     m_label_input->SetPlaceholder("Transaction label...");
+    m_label_input->SetBackgroundColor(UIStyleGuide::Colors::SURFACE_DARK);
+    m_label_input->SetBorderColor(UIStyleGuide::Colors::BORDER_DARK);
+    m_label_input->SetTextColor(UIStyleGuide::Colors::TEXT_PRIMARY);
+    
+    // Setup form layout using layout manager
+    std::vector<LayoutItem> form_items;
+    
+    // Address field group
+    form_items.push_back(LayoutItem{});
+    form_items.back().constraints.preferred_height = UIStyleGuide::FontSize::BODY + UIStyleGuide::Spacing::SM;
+    form_items.back().margin = Margin(UIStyleGuide::Spacing::MD);
+    form_items.back().on_bounds_changed = [this](const Rect& bounds) {
+        if (m_address_label) {
+            m_address_label->SetPosition(Point(bounds.x, bounds.y));
+        }
+    };
+    
+    form_items.push_back(LayoutItem{});
+    form_items.back().constraints.preferred_height = UIStyleGuide::Dimensions::INPUT_HEIGHT;
+    form_items.back().margin = Margin(UIStyleGuide::Spacing::SM, UIStyleGuide::Spacing::MD);
+    form_items.back().on_bounds_changed = [this](const Rect& bounds) {
+        if (m_address_input) {
+            m_address_input->SetBounds(bounds);
+        }
+    };
+    
+    // Amount and Fee row (horizontal layout)
+    form_items.push_back(LayoutItem{});
+    form_items.back().constraints.preferred_height = UIStyleGuide::FontSize::BODY + UIStyleGuide::Spacing::SM;
+    form_items.back().margin = Margin(UIStyleGuide::Spacing::MD);
+    form_items.back().on_bounds_changed = [this](const Rect& bounds) {
+        if (m_amount_label) {
+            m_amount_label->SetPosition(Point(bounds.x, bounds.y));
+        }
+        if (m_fee_label) {
+            m_fee_label->SetPosition(Point(bounds.x + bounds.w / 2, bounds.y));
+        }
+    };
+    
+    form_items.push_back(LayoutItem{});
+    form_items.back().constraints.preferred_height = UIStyleGuide::Dimensions::INPUT_HEIGHT;
+    form_items.back().margin = Margin(UIStyleGuide::Spacing::SM, UIStyleGuide::Spacing::MD);
+    form_items.back().on_bounds_changed = [this](const Rect& bounds) {
+        if (m_amount_input) {
+            Rect amount_bounds = bounds;
+            amount_bounds.w = (bounds.w - UIStyleGuide::Spacing::SM) / 2;
+            m_amount_input->SetBounds(amount_bounds);
+        }
+        if (m_fee_input) {
+            Rect fee_bounds = bounds;
+            fee_bounds.x += (bounds.w + UIStyleGuide::Spacing::SM) / 2;
+            fee_bounds.w = (bounds.w - UIStyleGuide::Spacing::SM) / 2;
+            m_fee_input->SetBounds(fee_bounds);
+        }
+    };
+    
+    // Label field group
+    form_items.push_back(LayoutItem{});
+    form_items.back().constraints.preferred_height = UIStyleGuide::FontSize::BODY + UIStyleGuide::Spacing::SM;
+    form_items.back().margin = Margin(UIStyleGuide::Spacing::MD);
+    form_items.back().on_bounds_changed = [this](const Rect& bounds) {
+        if (m_label_label) {
+            m_label_label->SetPosition(Point(bounds.x, bounds.y));
+        }
+    };
+    
+    form_items.push_back(LayoutItem{});
+    form_items.back().constraints.preferred_height = UIStyleGuide::Dimensions::INPUT_HEIGHT;
+    form_items.back().margin = Margin(UIStyleGuide::Spacing::SM, UIStyleGuide::Spacing::MD);
+    form_items.back().on_bounds_changed = [this](const Rect& bounds) {
+        if (m_label_input) {
+            m_label_input->SetBounds(bounds);
+        }
+    };
+    
+    // Apply vertical layout for form
+    m_layout_manager->CreateVerticalLayout(form_bounds, form_items, 
+                                         UIStyleGuide::Spacing::SM, Alignment::START);
 }
 
-void SendScreen::CreatePreviewPanel()
+void SendScreen::CreatePreviewPanel(int y, int height)
 {
+    if (!m_ui_factory || !m_layout_manager) return;
+    
     int width = m_gui.GetRenderer()->GetWidth();
-    int height = m_gui.GetRenderer()->GetHeight();
-    int panel_width = std::min(600, width - 40);
+    int panel_width = std::min(600, width - 2 * UIStyleGuide::Spacing::LG);
     int panel_x = (width - panel_width) / 2;
     
-    m_preview_panel = std::make_unique<Panel>(Rect(panel_x, 420, panel_width, height - 500));
-    m_preview_panel->SetBackgroundColor(Color(20, 20, 30, 255));
-    m_preview_panel->SetBorderColor(GetGothamGoldColor());
+    // Create preview panel with consistent styling
+    Rect preview_bounds = Rect(panel_x, y, panel_width, height);
+    m_preview_panel = m_ui_factory->CreatePanel(preview_bounds, PanelStyle::CARD);
     
-    int y_pos = 440;
+    // Create preview components with factory
+    m_preview_title_label = m_ui_factory->CreateLabel("Transaction Preview", Point(0, 0), LabelStyle::HEADING);
+    m_preview_title_label->SetColor(UIStyleGuide::Colors::GOTHAM_GOLD);
     
-    m_preview_title_label = std::make_unique<Label>("Transaction Preview", Point(panel_x + 20, y_pos));
-    m_preview_title_label->SetColor(GetGothamGoldColor());
-    y_pos += 35;
+    m_preview_address_label = m_ui_factory->CreateLabel("To: -", Point(0, 0), LabelStyle::BODY);
+    m_preview_address_label->SetColor(UIStyleGuide::Colors::TEXT_SECONDARY);
     
-    m_preview_address_label = std::make_unique<Label>("To: -", Point(panel_x + 30, y_pos));
-    m_preview_address_label->SetColor(Color(200, 200, 200, 255));
-    y_pos += 25;
+    m_preview_amount_label = m_ui_factory->CreateLabel("Amount: 0.00000000 GTC", Point(0, 0), LabelStyle::BODY);
+    m_preview_amount_label->SetColor(UIStyleGuide::Colors::TEXT_SECONDARY);
     
-    m_preview_amount_label = std::make_unique<Label>("Amount: 0.00000000 BTC", Point(panel_x + 30, y_pos));
-    m_preview_amount_label->SetColor(Color(200, 200, 200, 255));
-    y_pos += 25;
+    m_preview_fee_label = m_ui_factory->CreateLabel("Fee: 0.00001000 GTC", Point(0, 0), LabelStyle::BODY);
+    m_preview_fee_label->SetColor(UIStyleGuide::Colors::TEXT_SECONDARY);
     
-    m_preview_fee_label = std::make_unique<Label>("Fee: 0.00001000 BTC", Point(panel_x + 30, y_pos));
-    m_preview_fee_label->SetColor(Color(200, 200, 200, 255));
-    y_pos += 25;
+    m_preview_total_label = m_ui_factory->CreateLabel("Total: 0.00001000 GTC", Point(0, 0), LabelStyle::BODY);
+    m_preview_total_label->SetColor(UIStyleGuide::Colors::GOTHAM_GOLD);
     
-    m_preview_total_label = std::make_unique<Label>("Total: 0.00001000 BTC", Point(panel_x + 30, y_pos));
-    m_preview_total_label->SetColor(GetGothamGoldColor());
-    y_pos += 40;
-    
-    // Action buttons
-    int button_width = 120;
-    int button_spacing = 20;
-    int buttons_start_x = panel_x + (panel_width - (2 * button_width + button_spacing)) / 2;
-    
-    m_send_button = std::make_unique<Button>("Send", Rect(buttons_start_x, y_pos, button_width, 40));
-    m_send_button->SetColors(Color(220, 53, 69, 255), Color(240, 73, 89, 255), Color(200, 33, 49, 255));
-    m_send_button->SetTextColor(Color(255, 255, 255, 255));
+    // Create action buttons with consistent styling
+    m_send_button = m_ui_factory->CreateButton("💸 Send Transaction", Rect(0, 0, 150, UIStyleGuide::Dimensions::BUTTON_HEIGHT), ButtonStyle::PRIMARY);
     m_send_button->SetEnabled(false); // Disabled until form is valid
     
-    m_clear_button = std::make_unique<Button>("Clear", Rect(buttons_start_x + button_width + button_spacing, y_pos, button_width, 40));
-    m_clear_button->SetColors(Color(108, 117, 125, 255), Color(128, 137, 145, 255), Color(88, 97, 105, 255));
-    m_clear_button->SetTextColor(Color(255, 255, 255, 255));
+    m_clear_button = m_ui_factory->CreateButton("🗑️ Clear Form", Rect(0, 0, 150, UIStyleGuide::Dimensions::BUTTON_HEIGHT), ButtonStyle::SECONDARY);
     
-    y_pos += 60;
+    m_status_label = m_ui_factory->CreateLabel("Enter recipient address and amount", Point(0, 0), LabelStyle::CAPTION);
+    m_status_label->SetColor(UIStyleGuide::Colors::TEXT_DISABLED);
     
-    m_status_label = std::make_unique<Label>("Enter recipient address and amount", Point(panel_x + 30, y_pos));
-    m_status_label->SetColor(Color(150, 150, 150, 255));
+    // Setup preview layout using layout manager
+    std::vector<LayoutItem> preview_items;
+    
+    // Title
+    preview_items.push_back(LayoutItem{});
+    preview_items.back().constraints.preferred_height = UIStyleGuide::FontSize::HEADING + UIStyleGuide::Spacing::SM;
+    preview_items.back().margin = Margin(UIStyleGuide::Spacing::MD);
+    preview_items.back().on_bounds_changed = [this](const Rect& bounds) {
+        if (m_preview_title_label) {
+            m_preview_title_label->SetPosition(Point(bounds.x, bounds.y));
+        }
+    };
+    
+    // Address
+    preview_items.push_back(LayoutItem{});
+    preview_items.back().constraints.preferred_height = UIStyleGuide::FontSize::BODY + UIStyleGuide::Spacing::XS;
+    preview_items.back().margin = Margin(UIStyleGuide::Spacing::SM, UIStyleGuide::Spacing::LG);
+    preview_items.back().on_bounds_changed = [this](const Rect& bounds) {
+        if (m_preview_address_label) {
+            m_preview_address_label->SetPosition(Point(bounds.x, bounds.y));
+        }
+    };
+    
+    // Amount
+    preview_items.push_back(LayoutItem{});
+    preview_items.back().constraints.preferred_height = UIStyleGuide::FontSize::BODY + UIStyleGuide::Spacing::XS;
+    preview_items.back().margin = Margin(UIStyleGuide::Spacing::SM, UIStyleGuide::Spacing::LG);
+    preview_items.back().on_bounds_changed = [this](const Rect& bounds) {
+        if (m_preview_amount_label) {
+            m_preview_amount_label->SetPosition(Point(bounds.x, bounds.y));
+        }
+    };
+    
+    // Fee
+    preview_items.push_back(LayoutItem{});
+    preview_items.back().constraints.preferred_height = UIStyleGuide::FontSize::BODY + UIStyleGuide::Spacing::XS;
+    preview_items.back().margin = Margin(UIStyleGuide::Spacing::SM, UIStyleGuide::Spacing::LG);
+    preview_items.back().on_bounds_changed = [this](const Rect& bounds) {
+        if (m_preview_fee_label) {
+            m_preview_fee_label->SetPosition(Point(bounds.x, bounds.y));
+        }
+    };
+    
+    // Total
+    preview_items.push_back(LayoutItem{});
+    preview_items.back().constraints.preferred_height = UIStyleGuide::FontSize::BODY + UIStyleGuide::Spacing::SM;
+    preview_items.back().margin = Margin(UIStyleGuide::Spacing::MD, UIStyleGuide::Spacing::LG);
+    preview_items.back().on_bounds_changed = [this](const Rect& bounds) {
+        if (m_preview_total_label) {
+            m_preview_total_label->SetPosition(Point(bounds.x, bounds.y));
+        }
+    };
+    
+    // Action buttons (horizontal layout)
+    preview_items.push_back(LayoutItem{});
+    preview_items.back().constraints.preferred_height = UIStyleGuide::Dimensions::BUTTON_HEIGHT;
+    preview_items.back().margin = Margin(UIStyleGuide::Spacing::LG);
+    preview_items.back().on_bounds_changed = [this](const Rect& bounds) {
+        if (m_send_button && m_clear_button) {
+            int button_width = (bounds.w - UIStyleGuide::Spacing::MD) / 2;
+            
+            Rect send_bounds = bounds;
+            send_bounds.w = button_width;
+            m_send_button->SetBounds(send_bounds);
+            
+            Rect clear_bounds = bounds;
+            clear_bounds.x += button_width + UIStyleGuide::Spacing::MD;
+            clear_bounds.w = button_width;
+            m_clear_button->SetBounds(clear_bounds);
+        }
+    };
+    
+    // Status message
+    preview_items.push_back(LayoutItem{});
+    preview_items.back().constraints.preferred_height = UIStyleGuide::FontSize::CAPTION + UIStyleGuide::Spacing::SM;
+    preview_items.back().margin = Margin(UIStyleGuide::Spacing::MD);
+    preview_items.back().on_bounds_changed = [this](const Rect& bounds) {
+        if (m_status_label) {
+            m_status_label->SetPosition(Point(bounds.x, bounds.y));
+        }
+    };
+    
+    // Apply vertical layout for preview panel
+    m_layout_manager->CreateVerticalLayout(preview_bounds, preview_items, 
+                                         UIStyleGuide::Spacing::SM, Alignment::START);
 }
 
 void SendScreen::UpdatePreview()

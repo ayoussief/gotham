@@ -13,6 +13,11 @@
 MainScreen::MainScreen(GothamCityGUI& gui)
     : Screen(gui)
 {
+    // Initialize UI systems
+    if (auto* theme_manager = m_gui.GetThemeManager()) {
+        m_ui_factory = std::make_unique<UIFactory>(*theme_manager);
+    }
+    m_layout_manager = std::make_unique<LayoutManager>();
 }
 
 bool MainScreen::Initialize()
@@ -166,85 +171,186 @@ void MainScreen::OnResize(int new_width, int new_height)
 
 void MainScreen::CreateHeaderPanel()
 {
+    if (!m_ui_factory || !m_layout_manager) return;
+    
     int width = m_gui.GetRenderer()->GetWidth();
-    m_header_panel = std::make_unique<Panel>(Rect(0, 0, width, 80));
-    m_header_panel->SetBackgroundColor(Color(25, 25, 35, 255));
-    m_header_panel->SetBorderColor(Color(255, 215, 0, 255));
-    m_header_panel->SetBorderWidth(2);
+    int height = m_gui.GetRenderer()->GetHeight();
     
-    // Title
-    m_title_label = std::make_unique<Label>("GOTHAM CITY", Point(20, 25));
-    m_title_label->SetColor(Color(255, 215, 0, 255));
+    // Create header panel with consistent styling
+    Rect header_bounds = LayoutManager::StandardLayouts::GetHeaderBounds(width, height);
+    m_header_panel = m_ui_factory->CreatePanel(header_bounds, PanelStyle::HEADER);
     
-    // Balance
-    m_balance_label = std::make_unique<Label>("Balance: 0.00000000 GTC", Point(width - 300, 25));
-    m_balance_label->SetColor(Color(200, 200, 200, 255));
+    // Create header components with factory
+    m_title_label = m_ui_factory->CreateLabel("GOTHAM CITY", Point(0, 0), LabelStyle::TITLE);
+    m_balance_label = m_ui_factory->CreateLabel("Balance: 0.00000000 GTC", Point(0, 0), LabelStyle::BODY);
+    m_settings_button = m_ui_factory->CreateButton("Settings", Rect(0, 0, 100, 40), ButtonStyle::SECONDARY);
     
-    // Settings button
-    m_settings_button = std::make_unique<Button>("Settings", Rect(width - 120, 20, 100, 40));
-    m_settings_button->SetColors(Color(70, 130, 180, 255), Color(100, 149, 237, 255), Color(25, 25, 112, 255));
+    // Setup layout items for responsive positioning
+    m_header_items.clear();
+    m_header_items.resize(3);
+    
+    // Title item
+    m_header_items[0].constraints.preferred_width = 200;
+    m_header_items[0].on_bounds_changed = [this](const Rect& bounds) {
+        if (m_title_label) {
+            m_title_label->SetPosition(Point(bounds.x, bounds.y + bounds.h / 2 - 12));
+        }
+    };
+    
+    // Balance item
+    m_header_items[1].constraints.preferred_width = 250;
+    m_header_items[1].on_bounds_changed = [this](const Rect& bounds) {
+        if (m_balance_label) {
+            m_balance_label->SetPosition(Point(bounds.x, bounds.y + bounds.h / 2 - 8));
+        }
+    };
+    
+    // Settings button item
+    m_header_items[2].constraints.preferred_width = 100;
+    m_header_items[2].on_bounds_changed = [this](const Rect& bounds) {
+        if (m_settings_button) {
+            m_settings_button->SetBounds(Rect(bounds.x, bounds.y + 20, bounds.w, 40));
+        }
+    };
+    
+    // Apply header layout
+    m_layout_manager->CreateHeaderLayout(header_bounds, m_header_items);
 }
 
 void MainScreen::CreateSidebarPanel()
 {
+    if (!m_ui_factory || !m_layout_manager) return;
+    
+    int width = m_gui.GetRenderer()->GetWidth();
     int height = m_gui.GetRenderer()->GetHeight();
-    m_sidebar_panel = std::make_unique<Panel>(Rect(0, 80, 200, height - 110));
-    m_sidebar_panel->SetBackgroundColor(Color(20, 20, 30, 255));
-    m_sidebar_panel->SetBorderColor(Color(60, 60, 75, 255));
     
-    // Navigation buttons
-    int button_y = 100;
-    int button_spacing = 60;
+    // Create sidebar panel with consistent styling
+    Rect sidebar_bounds = LayoutManager::StandardLayouts::GetSidebarBounds(width, height);
+    m_sidebar_panel = m_ui_factory->CreatePanel(sidebar_bounds, PanelStyle::SIDEBAR);
     
-    m_wallet_button = std::make_unique<Button>("Wallet", Rect(10, button_y, 180, 50));
-    m_wallet_button->SetPrimary(true);
+    // Create navigation buttons with factory
+    m_wallet_button = m_ui_factory->CreateNavigationButton("Wallet", Rect(0, 0, 180, 50), m_active_screen == "wallet");
+    m_send_button = m_ui_factory->CreateNavigationButton("Send", Rect(0, 0, 180, 50), m_active_screen == "send");
+    m_receive_button = m_ui_factory->CreateNavigationButton("Receive", Rect(0, 0, 180, 50), m_active_screen == "receive");
+    m_transactions_button = m_ui_factory->CreateNavigationButton("Transactions", Rect(0, 0, 180, 50), m_active_screen == "transactions");
+    m_console_button = m_ui_factory->CreateNavigationButton("Console", Rect(0, 0, 180, 50), m_active_screen == "console");
     
-    m_send_button = std::make_unique<Button>("Send", Rect(10, button_y + button_spacing, 180, 50));
+    // Setup layout items for responsive positioning
+    m_sidebar_items.clear();
+    m_sidebar_items.resize(5);
     
-    m_receive_button = std::make_unique<Button>("Receive", Rect(10, button_y + button_spacing * 2, 180, 50));
+    // Setup button layout items
+    std::vector<std::unique_ptr<Button>*> buttons = {
+        &m_wallet_button, &m_send_button, &m_receive_button, &m_transactions_button, &m_console_button
+    };
     
-    m_transactions_button = std::make_unique<Button>("Transactions", Rect(10, button_y + button_spacing * 3, 180, 50));
+    for (size_t i = 0; i < buttons.size(); ++i) {
+        m_sidebar_items[i].constraints.preferred_height = m_ui_factory->GetStandardHeight("sidebar_button");
+        m_sidebar_items[i].margin = Margin(4, 10, 4, 10); // Add consistent margins
+        
+        // Capture button pointer for callback
+        auto* button_ptr = buttons[i]->get();
+        m_sidebar_items[i].on_bounds_changed = [button_ptr](const Rect& bounds) {
+            if (button_ptr) {
+                button_ptr->SetBounds(bounds);
+            }
+        };
+    }
     
-    m_console_button = std::make_unique<Button>("Console", Rect(10, button_y + button_spacing * 4, 180, 50));
+    // Apply sidebar layout with consistent spacing
+    int spacing = m_ui_factory->GetSpacing("sm");
+    m_layout_manager->CreateSidebarLayout(sidebar_bounds, m_sidebar_items, spacing);
 }
 
 void MainScreen::CreateMainPanel()
 {
+    if (!m_ui_factory || !m_layout_manager) return;
+    
     int width = m_gui.GetRenderer()->GetWidth();
     int height = m_gui.GetRenderer()->GetHeight();
     
-    m_main_panel = std::make_unique<Panel>(Rect(200, 80, width - 200, height - 110));
-    m_main_panel->SetBackgroundColor(Color(15, 15, 20, 255));
+    // Create main panel with consistent styling
+    Rect main_bounds = LayoutManager::StandardLayouts::GetMainContentBounds(width, height);
+    m_main_panel = m_ui_factory->CreatePanel(main_bounds, PanelStyle::MAIN);
     
-    // Welcome message
-    m_welcome_label = std::make_unique<Label>("Welcome to Gotham City", Point(250, 120));
-    m_welcome_label->SetColor(Color(255, 215, 0, 255));
+    // Create main content labels with factory and consistent styling
+    m_welcome_label = m_ui_factory->CreateLabel("Welcome to Gotham City", Point(0, 0), LabelStyle::TITLE);
+    m_network_status_label = m_ui_factory->CreateLabel("Network: Connecting...", Point(0, 0), LabelStyle::STATUS);
+    m_sync_status_label = m_ui_factory->CreateLabel("Synchronization: Starting...", Point(0, 0), LabelStyle::STATUS);
     
-    // Network status
-    m_network_status_label = std::make_unique<Label>("Network: Connecting...", Point(250, 180));
-    m_network_status_label->SetColor(Color(200, 200, 200, 255));
+    // Setup layout for main content with consistent spacing
+    std::vector<LayoutItem> main_items(3);
     
-    // Sync status
-    m_sync_status_label = std::make_unique<Label>("Synchronization: Starting...", Point(250, 210));
-    m_sync_status_label->SetColor(Color(200, 200, 200, 255));
+    // Welcome label
+    main_items[0].constraints.preferred_height = 40;
+    main_items[0].margin = Margin(m_ui_factory->GetSpacing("lg"));
+    main_items[0].on_bounds_changed = [this](const Rect& bounds) {
+        if (m_welcome_label) {
+            m_welcome_label->SetPosition(Point(bounds.x, bounds.y));
+        }
+    };
+    
+    // Network status label
+    main_items[1].constraints.preferred_height = 30;
+    main_items[1].margin = Margin(m_ui_factory->GetSpacing("md"), m_ui_factory->GetSpacing("lg"));
+    main_items[1].on_bounds_changed = [this](const Rect& bounds) {
+        if (m_network_status_label) {
+            m_network_status_label->SetPosition(Point(bounds.x, bounds.y));
+        }
+    };
+    
+    // Sync status label
+    main_items[2].constraints.preferred_height = 30;
+    main_items[2].margin = Margin(m_ui_factory->GetSpacing("sm"), m_ui_factory->GetSpacing("lg"));
+    main_items[2].on_bounds_changed = [this](const Rect& bounds) {
+        if (m_sync_status_label) {
+            m_sync_status_label->SetPosition(Point(bounds.x, bounds.y));
+        }
+    };
+    
+    // Apply vertical layout for main content
+    m_layout_manager->CreateVerticalLayout(main_bounds, main_items, m_ui_factory->GetSpacing("md"), Alignment::START);
 }
 
 void MainScreen::CreateStatusPanel()
 {
+    if (!m_ui_factory || !m_layout_manager) return;
+    
     int width = m_gui.GetRenderer()->GetWidth();
     int height = m_gui.GetRenderer()->GetHeight();
     
-    m_status_panel = std::make_unique<Panel>(Rect(0, height - 30, width, 30));
-    m_status_panel->SetBackgroundColor(Color(30, 30, 40, 255));
-    m_status_panel->SetBorderColor(Color(60, 60, 75, 255));
+    // Create status panel with consistent styling
+    Rect status_bounds = LayoutManager::StandardLayouts::GetStatusBarBounds(width, height);
+    m_status_panel = m_ui_factory->CreatePanel(status_bounds, PanelStyle::STATUS);
     
-    // Connection status
-    m_connection_label = std::make_unique<Label>("Connections: 0", Point(10, height - 25));
-    m_connection_label->SetColor(Color(150, 150, 150, 255));
+    // Create status labels with factory
+    m_connection_label = m_ui_factory->CreateLabel("Connections: 0", Point(0, 0), LabelStyle::CAPTION);
+    m_block_height_label = m_ui_factory->CreateLabel("Block: 0", Point(0, 0), LabelStyle::CAPTION);
     
-    // Block height
-    m_block_height_label = std::make_unique<Label>("Block: 0", Point(150, height - 25));
-    m_block_height_label->SetColor(Color(150, 150, 150, 255));
+    // Setup layout items for status bar
+    m_status_items.clear();
+    m_status_items.resize(2);
+    
+    // Connection label
+    m_status_items[0].constraints.preferred_width = 150;
+    m_status_items[0].margin = Margin(0, m_ui_factory->GetSpacing("sm"));
+    m_status_items[0].on_bounds_changed = [this](const Rect& bounds) {
+        if (m_connection_label) {
+            m_connection_label->SetPosition(Point(bounds.x, bounds.y + bounds.h / 2 - 6));
+        }
+    };
+    
+    // Block height label
+    m_status_items[1].constraints.preferred_width = 150;
+    m_status_items[1].margin = Margin(0, m_ui_factory->GetSpacing("sm"));
+    m_status_items[1].on_bounds_changed = [this](const Rect& bounds) {
+        if (m_block_height_label) {
+            m_block_height_label->SetPosition(Point(bounds.x, bounds.y + bounds.h / 2 - 6));
+        }
+    };
+    
+    // Apply status bar layout
+    m_layout_manager->CreateStatusBarLayout(status_bounds, m_status_items);
 }
 
 void MainScreen::SetupButtonCallbacks()
@@ -368,4 +474,58 @@ void MainScreen::OnSettingsClicked()
 {
     std::cout << "Switching to settings screen" << std::endl;
     m_gui.SwitchScreen(ScreenType::SETTINGS);
+}
+
+void MainScreen::UpdateActiveScreen(const std::string& screen_name)
+{
+    if (m_active_screen != screen_name) {
+        m_active_screen = screen_name;
+        RefreshNavigationButtons();
+    }
+}
+
+void MainScreen::RefreshNavigationButtons()
+{
+    if (!m_ui_factory) return;
+    
+    // Update navigation button styles based on active screen
+    if (m_wallet_button) {
+        if (m_active_screen == "wallet") {
+            m_ui_factory->CreateNavigationButton("Wallet", m_wallet_button->GetBounds(), true);
+        } else {
+            m_ui_factory->CreateNavigationButton("Wallet", m_wallet_button->GetBounds(), false);
+        }
+    }
+    
+    if (m_send_button) {
+        if (m_active_screen == "send") {
+            m_ui_factory->CreateNavigationButton("Send", m_send_button->GetBounds(), true);
+        } else {
+            m_ui_factory->CreateNavigationButton("Send", m_send_button->GetBounds(), false);
+        }
+    }
+    
+    if (m_receive_button) {
+        if (m_active_screen == "receive") {
+            m_ui_factory->CreateNavigationButton("Receive", m_receive_button->GetBounds(), true);
+        } else {
+            m_ui_factory->CreateNavigationButton("Receive", m_receive_button->GetBounds(), false);
+        }
+    }
+    
+    if (m_transactions_button) {
+        if (m_active_screen == "transactions") {
+            m_ui_factory->CreateNavigationButton("Transactions", m_transactions_button->GetBounds(), true);
+        } else {
+            m_ui_factory->CreateNavigationButton("Transactions", m_transactions_button->GetBounds(), false);
+        }
+    }
+    
+    if (m_console_button) {
+        if (m_active_screen == "console") {
+            m_ui_factory->CreateNavigationButton("Console", m_console_button->GetBounds(), true);
+        } else {
+            m_ui_factory->CreateNavigationButton("Console", m_console_button->GetBounds(), false);
+        }
+    }
 }

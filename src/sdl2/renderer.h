@@ -15,7 +15,7 @@ class WindowManager;
 struct Color {
     Uint8 r, g, b, a;
     
-    Color(Uint8 red = 0, Uint8 green = 0, Uint8 blue = 0, Uint8 alpha = 255)
+    constexpr Color(Uint8 red = 0, Uint8 green = 0, Uint8 blue = 0, Uint8 alpha = 255)
         : r(red), g(green), b(blue), a(alpha) {}
 };
 

@@ -13,6 +13,11 @@
 
 WalletScreen::WalletScreen(GothamCityGUI& gui) : Screen(gui)
 {
+    // Initialize UI systems
+    if (auto* theme_manager = m_gui.GetThemeManager()) {
+        m_ui_factory = std::make_unique<UIFactory>(*theme_manager);
+    }
+    m_layout_manager = std::make_unique<LayoutManager>();
 }
 
 bool WalletScreen::Initialize()
@@ -65,8 +70,8 @@ void WalletScreen::Update(float delta_time)
 
 void WalletScreen::Render(Renderer& renderer)
 {
-    // Render background
-    renderer.Clear(GetGothamDarkColor());
+    // Render background with consistent theme
+    renderer.Clear(UIStyleGuide::Colors::BACKGROUND_DARK);
     
     // Render UI panels
     if (m_header_panel) m_header_panel->Render(renderer);
@@ -150,61 +155,169 @@ void WalletScreen::CreateLayout()
 
 void WalletScreen::CreateHeaderPanel()
 {
+    if (!m_ui_factory || !m_layout_manager) return;
+    
     int width = m_gui.GetRenderer()->GetWidth();
+    int height = m_gui.GetRenderer()->GetHeight();
     
-    m_header_panel = std::make_unique<Panel>(Rect(0, 0, width, 80));
-    m_header_panel->SetBackgroundColor(GetGothamDarkColor());
+    // Create header panel with consistent styling
+    Rect header_bounds = Rect(0, 0, width, UIStyleGuide::Dimensions::HEADER_HEIGHT);
+    m_header_panel = m_ui_factory->CreatePanel(header_bounds, PanelStyle::HEADER);
     
-    m_title_label = std::make_unique<Label>("💰 Wallet", Point(50, 30));
-    m_title_label->SetColor(GetGothamGoldColor());
+    // Create header components with factory
+    m_title_label = m_ui_factory->CreateLabel("💰 Wallet", Point(0, 0), LabelStyle::TITLE);
+    m_back_button = m_ui_factory->CreateButton("← Back", Rect(0, 0, 100, 40), ButtonStyle::SECONDARY);
     
-    m_back_button = std::make_unique<Button>("← Back", Rect(width - 120, 20, 100, 40));
-    m_back_button->SetColors(Color(60, 60, 70, 255), Color(80, 80, 90, 255), Color(40, 40, 50, 255));
-    m_back_button->SetTextColor(Color(255, 255, 255, 255));
+    // Setup layout for header components
+    std::vector<LayoutItem> header_items(2);
+    
+    // Title item
+    header_items[0].constraints.preferred_width = 200;
+    header_items[0].margin = Margin(0, UIStyleGuide::Spacing::LG);
+    header_items[0].on_bounds_changed = [this](const Rect& bounds) {
+        if (m_title_label) {
+            m_title_label->SetPosition(Point(bounds.x, bounds.y + bounds.h / 2 - 12));
+        }
+    };
+    
+    // Back button item
+    header_items[1].constraints.preferred_width = 100;
+    header_items[1].margin = Margin(UIStyleGuide::Spacing::SM);
+    header_items[1].on_bounds_changed = [this](const Rect& bounds) {
+        if (m_back_button) {
+            m_back_button->SetBounds(bounds);
+        }
+    };
+    
+    // Apply horizontal layout for header
+    m_layout_manager->CreateHorizontalLayout(header_bounds, header_items, 
+                                           UIStyleGuide::Spacing::MD, Alignment::CENTER);
 }
 
 void WalletScreen::CreateBalancePanel()
 {
+    if (!m_ui_factory || !m_layout_manager) return;
+    
     int width = m_gui.GetRenderer()->GetWidth();
     
-    m_balance_panel = std::make_unique<Panel>(Rect(20, 100, width - 40, 150));
-    m_balance_panel->SetBackgroundColor(Color(25, 25, 35, 255));
-    m_balance_panel->SetBorderColor(GetGothamGoldColor());
+    // Create balance panel with consistent styling
+    Rect balance_bounds = Rect(UIStyleGuide::Spacing::LG, 
+                              UIStyleGuide::Dimensions::HEADER_HEIGHT + UIStyleGuide::Spacing::LG,
+                              width - 2 * UIStyleGuide::Spacing::LG, 
+                              150);
+    m_balance_panel = m_ui_factory->CreatePanel(balance_bounds, PanelStyle::CARD);
     
-    m_balance_title_label = std::make_unique<Label>("Balance", Point(40, 120));
-    m_balance_title_label->SetColor(Color(255, 255, 255, 255));
+    // Create balance labels with factory
+    m_balance_title_label = m_ui_factory->CreateLabel("Balance", Point(0, 0), LabelStyle::HEADING);
+    m_confirmed_balance_label = m_ui_factory->CreateLabel("Confirmed: 0.00000000 GTC", Point(0, 0), LabelStyle::BODY);
+    m_unconfirmed_balance_label = m_ui_factory->CreateLabel("Unconfirmed: 0.00000000 GTC", Point(0, 0), LabelStyle::BODY);
+    m_total_balance_label = m_ui_factory->CreateLabel("Total: 0.00000000 GTC", Point(0, 0), LabelStyle::TITLE);
     
-    m_confirmed_balance_label = std::make_unique<Label>("Confirmed: 0.00000000 BTC", Point(60, 150));
-    m_confirmed_balance_label->SetColor(Color(46, 160, 67, 255));
+    // Apply theme colors
+    if (m_confirmed_balance_label) m_confirmed_balance_label->SetColor(UIStyleGuide::Colors::SUCCESS);
+    if (m_unconfirmed_balance_label) m_unconfirmed_balance_label->SetColor(UIStyleGuide::Colors::WARNING);
+    if (m_total_balance_label) m_total_balance_label->SetColor(UIStyleGuide::Colors::GOTHAM_GOLD);
     
-    m_unconfirmed_balance_label = std::make_unique<Label>("Unconfirmed: 0.00000000 BTC", Point(60, 175));
-    m_unconfirmed_balance_label->SetColor(Color(255, 193, 7, 255));
+    // Setup layout for balance items
+    m_balance_items.clear();
+    m_balance_items.resize(4);
     
-    m_total_balance_label = std::make_unique<Label>("Total: 0.00000000 BTC", Point(60, 210));
-    m_total_balance_label->SetColor(GetGothamGoldColor());
+    // Balance title
+    m_balance_items[0].constraints.preferred_height = 30;
+    m_balance_items[0].margin = Margin(UIStyleGuide::Spacing::MD);
+    m_balance_items[0].on_bounds_changed = [this](const Rect& bounds) {
+        if (m_balance_title_label) {
+            m_balance_title_label->SetPosition(Point(bounds.x, bounds.y));
+        }
+    };
+    
+    // Confirmed balance
+    m_balance_items[1].constraints.preferred_height = 25;
+    m_balance_items[1].margin = Margin(UIStyleGuide::Spacing::SM, UIStyleGuide::Spacing::LG);
+    m_balance_items[1].on_bounds_changed = [this](const Rect& bounds) {
+        if (m_confirmed_balance_label) {
+            m_confirmed_balance_label->SetPosition(Point(bounds.x, bounds.y));
+        }
+    };
+    
+    // Unconfirmed balance
+    m_balance_items[2].constraints.preferred_height = 25;
+    m_balance_items[2].margin = Margin(UIStyleGuide::Spacing::SM, UIStyleGuide::Spacing::LG);
+    m_balance_items[2].on_bounds_changed = [this](const Rect& bounds) {
+        if (m_unconfirmed_balance_label) {
+            m_unconfirmed_balance_label->SetPosition(Point(bounds.x, bounds.y));
+        }
+    };
+    
+    // Total balance
+    m_balance_items[3].constraints.preferred_height = 30;
+    m_balance_items[3].margin = Margin(UIStyleGuide::Spacing::MD, UIStyleGuide::Spacing::LG);
+    m_balance_items[3].on_bounds_changed = [this](const Rect& bounds) {
+        if (m_total_balance_label) {
+            m_total_balance_label->SetPosition(Point(bounds.x, bounds.y));
+        }
+    };
+    
+    // Apply vertical layout for balance panel
+    m_layout_manager->CreateVerticalLayout(balance_bounds, m_balance_items, 
+                                         UIStyleGuide::Spacing::SM, Alignment::START);
 }
 
 void WalletScreen::CreateActionsPanel()
 {
+    if (!m_ui_factory || !m_layout_manager) return;
+    
     int width = m_gui.GetRenderer()->GetWidth();
-    int button_width = 150;
-    int button_spacing = 20;
-    int start_x = (width - (3 * button_width + 2 * button_spacing)) / 2;
     
-    m_actions_panel = std::make_unique<Panel>(Rect(20, 270, width - 40, 80));
-    m_actions_panel->SetBackgroundColor(Color(20, 20, 30, 255));
+    // Create actions panel with consistent styling
+    Rect actions_bounds = Rect(UIStyleGuide::Spacing::LG, 
+                              UIStyleGuide::Dimensions::HEADER_HEIGHT + 150 + 2 * UIStyleGuide::Spacing::LG,
+                              width - 2 * UIStyleGuide::Spacing::LG, 
+                              80);
+    m_actions_panel = m_ui_factory->CreatePanel(actions_bounds, PanelStyle::MAIN);
     
-    m_send_button = std::make_unique<Button>("Send", Rect(start_x, 290, button_width, 40));
-    m_send_button->SetColors(Color(220, 53, 69, 255), Color(240, 73, 89, 255), Color(200, 33, 49, 255));
-    m_send_button->SetTextColor(Color(255, 255, 255, 255));
+    // Create action buttons with factory and consistent styling
+    m_send_button = m_ui_factory->CreateButton("💸 Send", Rect(0, 0, 150, UIStyleGuide::Dimensions::BUTTON_HEIGHT), ButtonStyle::WARNING);
+    m_receive_button = m_ui_factory->CreateButton("📥 Receive", Rect(0, 0, 150, UIStyleGuide::Dimensions::BUTTON_HEIGHT), ButtonStyle::SUCCESS);
+    m_transactions_button = m_ui_factory->CreateButton("📋 History", Rect(0, 0, 150, UIStyleGuide::Dimensions::BUTTON_HEIGHT), ButtonStyle::SECONDARY);
     
-    m_receive_button = std::make_unique<Button>("Receive", Rect(start_x + button_width + button_spacing, 290, button_width, 40));
-    m_receive_button->SetColors(Color(46, 160, 67, 255), Color(66, 180, 87, 255), Color(26, 140, 47, 255));
-    m_receive_button->SetTextColor(Color(255, 255, 255, 255));
+    // Setup layout for action buttons
+    m_action_items.clear();
+    m_action_items.resize(3);
     
-    m_transactions_button = std::make_unique<Button>("Transactions", Rect(start_x + 2 * (button_width + button_spacing), 290, button_width, 40));
-    m_transactions_button->SetColors(Color(0, 123, 255, 255), Color(20, 143, 255, 255), Color(0, 103, 235, 255));
-    m_transactions_button->SetTextColor(Color(255, 255, 255, 255));
+    // Send button
+    m_action_items[0].constraints.preferred_width = 150;
+    m_action_items[0].constraints.weight = 1.0f;
+    m_action_items[0].margin = Margin(UIStyleGuide::Spacing::SM);
+    m_action_items[0].on_bounds_changed = [this](const Rect& bounds) {
+        if (m_send_button) {
+            m_send_button->SetBounds(bounds);
+        }
+    };
+    
+    // Receive button
+    m_action_items[1].constraints.preferred_width = 150;
+    m_action_items[1].constraints.weight = 1.0f;
+    m_action_items[1].margin = Margin(UIStyleGuide::Spacing::SM);
+    m_action_items[1].on_bounds_changed = [this](const Rect& bounds) {
+        if (m_receive_button) {
+            m_receive_button->SetBounds(bounds);
+        }
+    };
+    
+    // Transactions button
+    m_action_items[2].constraints.preferred_width = 150;
+    m_action_items[2].constraints.weight = 1.0f;
+    m_action_items[2].margin = Margin(UIStyleGuide::Spacing::SM);
+    m_action_items[2].on_bounds_changed = [this](const Rect& bounds) {
+        if (m_transactions_button) {
+            m_transactions_button->SetBounds(bounds);
+        }
+    };
+    
+    // Apply horizontal layout for action buttons
+    m_layout_manager->CreateHorizontalLayout(actions_bounds, m_action_items, 
+                                           UIStyleGuide::Spacing::MD, Alignment::CENTER);
 }
 
 void WalletScreen::CreateTransactionsPanel()
@@ -319,12 +432,3 @@ void WalletScreen::OnTransactionsClicked()
     m_gui.SwitchScreen(ScreenType::TRANSACTIONS);
 }
 
-Color WalletScreen::GetGothamGoldColor() const
-{
-    return Color(255, 215, 0, 255);
-}
-
-Color WalletScreen::GetGothamDarkColor() const
-{
-    return Color(15, 15, 20, 255);
-}

@@ -330,9 +330,17 @@ CMakeFiles/gotham-city.dir/screens/main_screen.cpp.o: \
  /usr/include/c++/13/bits/uniform_int_dist.h \
  /home/amr/gotham/src/sdl2/screens/../ui/label.h \
  /home/amr/gotham/src/sdl2/screens/../ui/panel.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/ui_factory.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/button.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/label.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/panel.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/text_input.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/progress_bar.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/../utils/theme.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/../utils/../renderer.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/layout_manager.h \
  /home/amr/gotham/src/sdl2/screens/../gotham_city_gui.h \
  /home/amr/gotham/src/sdl2/screens/../utils/theme.h \
- /home/amr/gotham/src/sdl2/screens/../utils/../renderer.h \
  /home/amr/gotham/src/sdl2/screens/../utils/font_manager.h \
  /usr/include/c++/13/iostream /usr/include/c++/13/ostream \
  /usr/include/c++/13/ios /usr/include/c++/13/bits/ios_base.h \
