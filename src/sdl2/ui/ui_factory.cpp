@@ -183,6 +183,10 @@ void UIFactory::ApplyLabelStyle(Label& label, LabelStyle style)
             label.SetColor(m_theme_manager.GetColor(ThemeColor::TEXT_PRIMARY));
             break;
             
+        case LabelStyle::SUBHEADING:
+            label.SetColor(m_theme_manager.GetColor(ThemeColor::TEXT_PRIMARY));
+            break;
+            
         case LabelStyle::BODY:
             label.SetColor(m_theme_manager.GetColor(ThemeColor::TEXT_PRIMARY));
             break;
@@ -230,6 +234,19 @@ void UIFactory::ApplyPanelStyle(Panel& panel, PanelStyle style)
             
         case PanelStyle::CARD:
             panel.SetBackgroundColor(m_theme_manager.GetColor(ThemeColor::SURFACE));
+            panel.SetBorderColor(m_theme_manager.GetColor(ThemeColor::BORDER));
+            panel.SetBorderWidth(1);
+            break;
+            
+        case PanelStyle::CONTENT:
+            // Make content panel more visible with a subtle background
+            panel.SetBackgroundColor(Color(25, 35, 45, 180)); // Semi-transparent dark blue
+            panel.SetBorderColor(Color(70, 130, 180, 100)); // Subtle border
+            panel.SetBorderWidth(1);
+            break;
+            
+        case PanelStyle::INFO:
+            panel.SetBackgroundColor(Color(25, 35, 45, 255)); // Slightly different from STATUS
             panel.SetBorderColor(m_theme_manager.GetColor(ThemeColor::BORDER));
             panel.SetBorderWidth(1);
             break;

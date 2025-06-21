@@ -4,15 +4,12 @@
 
 #include "settings_screen.h"
 #include "../gotham_city_gui.h"
-#include "../renderer.h"
 #include "../utils/theme.h"
 #include "../utils/font_manager.h"
 #include <iostream>
-#include <algorithm>
 
 SettingsScreen::SettingsScreen(GothamCityGUI& gui) : Screen(gui)
 {
-    // Initialize UI systems
     if (auto* theme_manager = m_gui.GetThemeManager()) {
         m_ui_factory = std::make_unique<UIFactory>(*theme_manager);
     }
@@ -21,248 +18,224 @@ SettingsScreen::SettingsScreen(GothamCityGUI& gui) : Screen(gui)
 
 bool SettingsScreen::Initialize()
 {
-    if (m_initialized) {
-        return true;
-    }
-
-    CreateLayout();
+    if (m_initialized) return true;
+    
+    CreateContentPanel();
     SetupButtonCallbacks();
+    LoadSettings();
+    
     m_initialized = true;
-    std::cout << "Settings screen initialized" << std::endl;
+    std::cout << "Settings screen initialized (content area only)" << std::endl;
     return true;
+}
+
+void SettingsScreen::CreateContentPanel()
+{
+    if (!m_ui_factory) return;
+    
+    m_content_panel = m_ui_factory->CreatePanel(Rect(0, 0, 800, 600), PanelStyle::CONTENT);
+    CreateNetworkPanel();
+    CreateSecurityPanel();
+    CreateDisplayPanel();
+    CreateAdvancedPanel();
+    
+    // Action buttons
+    m_save_button = m_ui_factory->CreateButton("💾 Save", Rect(20, 550, 80, 35), ButtonStyle::PRIMARY);
+    m_cancel_button = m_ui_factory->CreateButton("❌ Cancel", Rect(110, 550, 80, 35), ButtonStyle::SECONDARY);
+    m_apply_button = m_ui_factory->CreateButton("✅ Apply", Rect(200, 550, 80, 35), ButtonStyle::GHOST);
+}
+
+void SettingsScreen::CreateNetworkPanel()
+{
+    m_network_panel = m_ui_factory->CreatePanel(Rect(20, 20, 300, 120), PanelStyle::CARD);
+    m_network_title_label = m_ui_factory->CreateLabel("Network Settings", Point(30, 30), LabelStyle::SUBHEADING);
+    m_mainnet_button = m_ui_factory->CreateButton("Mainnet", Rect(30, 60, 80, 30), ButtonStyle::PRIMARY);
+    m_testnet_button = m_ui_factory->CreateButton("Testnet", Rect(120, 60, 80, 30), ButtonStyle::SECONDARY);
+    m_regtest_button = m_ui_factory->CreateButton("Regtest", Rect(210, 60, 80, 30), ButtonStyle::SECONDARY);
+    m_proxy_label = m_ui_factory->CreateLabel("Proxy:", Point(30, 100), LabelStyle::BODY);
+    m_proxy_input = m_ui_factory->CreateTextInput(Rect(80, 100, 200, 25), "127.0.0.1:9050");
+}
+
+void SettingsScreen::CreateSecurityPanel()
+{
+    m_security_panel = m_ui_factory->CreatePanel(Rect(340, 20, 300, 120), PanelStyle::CARD);
+    m_security_title_label = m_ui_factory->CreateLabel("Security", Point(350, 30), LabelStyle::SUBHEADING);
+    m_encrypt_wallet_button = m_ui_factory->CreateButton("🔒 Encrypt Wallet", Rect(350, 60, 120, 25), ButtonStyle::SECONDARY);
+    m_change_passphrase_button = m_ui_factory->CreateButton("🔑 Change Pass", Rect(480, 60, 120, 25), ButtonStyle::GHOST);
+    m_backup_wallet_button = m_ui_factory->CreateButton("💾 Backup", Rect(350, 90, 120, 25), ButtonStyle::GHOST);
+    m_verify_backup_button = m_ui_factory->CreateButton("✅ Verify", Rect(480, 90, 120, 25), ButtonStyle::GHOST);
+}
+
+void SettingsScreen::CreateDisplayPanel()
+{
+    m_display_panel = m_ui_factory->CreatePanel(Rect(20, 160, 300, 120), PanelStyle::CARD);
+    m_display_title_label = m_ui_factory->CreateLabel("Display", Point(30, 170), LabelStyle::SUBHEADING);
+    m_dark_theme_button = m_ui_factory->CreateButton("🌙 Dark", Rect(30, 200, 80, 30), ButtonStyle::PRIMARY);
+    m_light_theme_button = m_ui_factory->CreateButton("☀️ Light", Rect(120, 200, 80, 30), ButtonStyle::SECONDARY);
+    m_language_label = m_ui_factory->CreateLabel("Language:", Point(30, 240), LabelStyle::BODY);
+    m_language_button = m_ui_factory->CreateButton("English", Rect(100, 240, 80, 25), ButtonStyle::GHOST);
+    m_fullscreen_button = m_ui_factory->CreateButton("🖥️ Fullscreen", Rect(190, 240, 100, 25), ButtonStyle::GHOST);
+}
+
+void SettingsScreen::CreateAdvancedPanel()
+{
+    m_advanced_panel = m_ui_factory->CreatePanel(Rect(340, 160, 300, 120), PanelStyle::CARD);
+    m_advanced_title_label = m_ui_factory->CreateLabel("Advanced", Point(350, 170), LabelStyle::SUBHEADING);
+    m_datadir_label = m_ui_factory->CreateLabel("Data Dir:", Point(350, 200), LabelStyle::BODY);
+    m_datadir_input = m_ui_factory->CreateTextInput(Rect(410, 200, 150, 25), "~/.gotham");
+    m_browse_datadir_button = m_ui_factory->CreateButton("📁", Rect(570, 200, 30, 25), ButtonStyle::GHOST);
+    m_reset_settings_button = m_ui_factory->CreateButton("🔄 Reset", Rect(350, 240, 80, 25), ButtonStyle::ERROR);
+}
+
+void SettingsScreen::SetupButtonCallbacks()
+{
+    if (m_mainnet_button) m_mainnet_button->SetOnClick([this]() { OnMainnetClicked(); });
+    if (m_testnet_button) m_testnet_button->SetOnClick([this]() { OnTestnetClicked(); });
+    if (m_regtest_button) m_regtest_button->SetOnClick([this]() { OnRegtestClicked(); });
+    if (m_dark_theme_button) m_dark_theme_button->SetOnClick([this]() { OnDarkThemeClicked(); });
+    if (m_light_theme_button) m_light_theme_button->SetOnClick([this]() { OnLightThemeClicked(); });
+    if (m_save_button) m_save_button->SetOnClick([this]() { OnSaveClicked(); });
+    if (m_cancel_button) m_cancel_button->SetOnClick([this]() { OnCancelClicked(); });
+    if (m_apply_button) m_apply_button->SetOnClick([this]() { OnApplyClicked(); });
 }
 
 void SettingsScreen::HandleEvent(const SDL_Event& event)
 {
-    if (event.type == SDL_KEYDOWN) {
-        switch (event.key.keysym.sym) {
-            case SDLK_ESCAPE:
-                m_gui.SwitchScreen(ScreenType::MAIN);
-                return;
-        }
-    }
-    
-    // Pass events to UI components
-    if (m_back_button) m_back_button->HandleEvent(event);
+    if (m_content_panel) m_content_panel->HandleEvent(event);
+    if (m_mainnet_button) m_mainnet_button->HandleEvent(event);
+    if (m_testnet_button) m_testnet_button->HandleEvent(event);
+    if (m_regtest_button) m_regtest_button->HandleEvent(event);
+    if (m_dark_theme_button) m_dark_theme_button->HandleEvent(event);
+    if (m_light_theme_button) m_light_theme_button->HandleEvent(event);
+    if (m_save_button) m_save_button->HandleEvent(event);
+    if (m_cancel_button) m_cancel_button->HandleEvent(event);
+    if (m_apply_button) m_apply_button->HandleEvent(event);
 }
 
 void SettingsScreen::Update(float delta_time)
 {
     m_elapsed_time += delta_time;
+    CheckForChanges();
 }
 
 void SettingsScreen::Render(Renderer& renderer)
 {
-    // Render background with consistent theme
-    renderer.Clear(UIStyleGuide::Colors::BACKGROUND_DARK);
-    
-    // Render UI panels
-    if (m_header_panel) m_header_panel->Render(renderer);
+    if (m_content_panel) m_content_panel->Render(renderer);
     if (m_network_panel) m_network_panel->Render(renderer);
-    if (m_display_panel) m_display_panel->Render(renderer);
     if (m_security_panel) m_security_panel->Render(renderer);
-    if (m_about_panel) m_about_panel->Render(renderer);
+    if (m_display_panel) m_display_panel->Render(renderer);
+    if (m_advanced_panel) m_advanced_panel->Render(renderer);
     
-    // Get fonts from font manager
-    FontManager* font_manager = m_gui.GetFontManager();
-    if (font_manager) {
-        TTF_Font* title_font = font_manager->GetDefaultFont(24);
-        TTF_Font* heading_font = font_manager->GetDefaultFont(18);
-        TTF_Font* body_font = font_manager->GetDefaultFont(14);
-        
-        // Render header components
-        if (m_title_label) m_title_label->Render(renderer, title_font);
-        if (m_back_button) m_back_button->Render(renderer, body_font);
-        
-        // Render network settings
-        if (m_network_title_label) m_network_title_label->Render(renderer, heading_font);
-        if (m_network_status_label) m_network_status_label->Render(renderer, body_font);
-        if (m_rpc_port_label) m_rpc_port_label->Render(renderer, body_font);
-        if (m_proxy_label) m_proxy_label->Render(renderer, body_font);
-        
-        // Render display settings
-        if (m_display_title_label) m_display_title_label->Render(renderer, heading_font);
-        if (m_theme_label) m_theme_label->Render(renderer, body_font);
-        if (m_language_label) m_language_label->Render(renderer, body_font);
-        if (m_currency_label) m_currency_label->Render(renderer, body_font);
-        
-        // Render security settings
-        if (m_security_title_label) m_security_title_label->Render(renderer, heading_font);
-        if (m_encryption_label) m_encryption_label->Render(renderer, body_font);
-        if (m_autolock_label) m_autolock_label->Render(renderer, body_font);
-        
-        // Render about section
-        if (m_about_title_label) m_about_title_label->Render(renderer, heading_font);
-        if (m_version_label) m_version_label->Render(renderer, body_font);
-        if (m_core_version_label) m_core_version_label->Render(renderer, body_font);
-    }
+    TTF_Font* subheading_font = m_gui.GetFontManager()->GetDefaultFont(UIStyleGuide::FontSize::SUBHEADING);
+    TTF_Font* body_font = m_gui.GetFontManager()->GetDefaultFont(UIStyleGuide::FontSize::BODY);
+    
+    if (m_network_title_label && subheading_font) m_network_title_label->Render(renderer, subheading_font);
+    if (m_mainnet_button && body_font) m_mainnet_button->Render(renderer, body_font);
+    if (m_testnet_button && body_font) m_testnet_button->Render(renderer, body_font);
+    if (m_regtest_button && body_font) m_regtest_button->Render(renderer, body_font);
+    
+    if (m_security_title_label && subheading_font) m_security_title_label->Render(renderer, subheading_font);
+    if (m_display_title_label && subheading_font) m_display_title_label->Render(renderer, subheading_font);
+    if (m_advanced_title_label && subheading_font) m_advanced_title_label->Render(renderer, subheading_font);
+    
+    if (m_save_button && body_font) m_save_button->Render(renderer, body_font);
+    if (m_cancel_button && body_font) m_cancel_button->Render(renderer, body_font);
+    if (m_apply_button && body_font) m_apply_button->Render(renderer, body_font);
 }
 
 void SettingsScreen::OnActivate()
 {
     std::cout << "Settings screen activated" << std::endl;
+    LoadSettings();
 }
 
 void SettingsScreen::OnResize(int new_width, int new_height)
 {
-    std::cout << "Settings screen resizing to: " << new_width << "x" << new_height << std::endl;
-    CreateLayout();
+    RepositionElements(new_width, new_height);
 }
 
-void SettingsScreen::CreateLayout()
+void SettingsScreen::OnNavigatedTo(const NavigationContext& context)
 {
-    if (!m_ui_factory || !m_layout_manager) return;
-    
-    int screen_width = m_gui.GetRenderer()->GetWidth();
-    int screen_height = m_gui.GetRenderer()->GetHeight();
-    
-    // Calculate responsive panel dimensions
-    int panel_width = std::min(600, screen_width - UIStyleGuide::Spacing::XL * 2);
-    int panel_x = (screen_width - panel_width) / 2;
-    
-    // Calculate vertical positions with proper spacing
-    int header_height = UIStyleGuide::Dimensions::HEADER_HEIGHT;
-    int current_y = header_height + UIStyleGuide::Spacing::LG;
-    int panel_spacing = UIStyleGuide::Spacing::MD;
-    
-    CreateHeaderPanel();
-    CreateNetworkPanel(panel_x, current_y, panel_width);
-    current_y += 120 + panel_spacing;
-    
-    CreateDisplayPanel(panel_x, current_y, panel_width);
-    current_y += 120 + panel_spacing;
-    
-    CreateSecurityPanel(panel_x, current_y, panel_width);
-    current_y += 95 + panel_spacing;
-    
-    CreateAboutPanel(panel_x, current_y, panel_width);
+    std::cout << "Navigated to Settings screen" << std::endl;
+    LoadSettings();
 }
 
-void SettingsScreen::CreateHeaderPanel()
+void SettingsScreen::OnNavigatedFrom()
 {
-    if (!m_ui_factory || !m_layout_manager) return;
-    
-    int width = m_gui.GetRenderer()->GetWidth();
-    
-    // Create header panel with consistent styling
-    Rect header_bounds = Rect(0, 0, width, UIStyleGuide::Dimensions::HEADER_HEIGHT);
-    m_header_panel = m_ui_factory->CreatePanel(header_bounds, PanelStyle::HEADER);
-    
-    // Create header components
-    m_title_label = m_ui_factory->CreateLabel("⚙️ Settings", Point(0, 0), LabelStyle::TITLE);
-    m_back_button = m_ui_factory->CreateButton("← Back", Rect(0, 0, 100, 40), ButtonStyle::SECONDARY);
-    
-    // Setup layout for header components
-    std::vector<LayoutItem> header_items(2);
-    
-    // Title item
-    header_items[0].constraints.preferred_width = 300;
-    header_items[0].margin = Margin(0, UIStyleGuide::Spacing::LG);
-    header_items[0].on_bounds_changed = [this](const Rect& bounds) {
-        if (m_title_label) {
-            m_title_label->SetPosition(Point(bounds.x, bounds.y + bounds.h / 2 - 12));
-        }
-    };
-    
-    // Back button
-    header_items[1].constraints.preferred_width = 100;
-    header_items[1].margin = Margin(UIStyleGuide::Spacing::SM);
-    header_items[1].on_bounds_changed = [this](const Rect& bounds) {
-        if (m_back_button) {
-            m_back_button->SetBounds(bounds);
-        }
-    };
-    
-    // Apply horizontal layout for header
-    m_layout_manager->CreateHorizontalLayout(header_bounds, header_items, 
-                                           UIStyleGuide::Spacing::MD, Alignment::CENTER);
-}
-
-void SettingsScreen::CreateNetworkPanel(int x, int y, int width)
-{
-    if (!m_ui_factory || !m_layout_manager) return;
-    
-    // Create network panel
-    Rect network_bounds = Rect(x, y, width, 120);
-    m_network_panel = m_ui_factory->CreatePanel(network_bounds, PanelStyle::CARD);
-    
-    // Create network components with proper spacing
-    m_network_title_label = m_ui_factory->CreateLabel("Network Settings", Point(x + UIStyleGuide::Spacing::LG, y + UIStyleGuide::Spacing::LG), LabelStyle::HEADING);
-    m_network_title_label->SetColor(UIStyleGuide::Colors::GOTHAM_GOLD);
-    
-    int label_y = y + UIStyleGuide::Spacing::LG + 30;
-    m_network_status_label = m_ui_factory->CreateLabel("• Network: Mainnet", Point(x + UIStyleGuide::Spacing::XL, label_y), LabelStyle::BODY);
-    m_rpc_port_label = m_ui_factory->CreateLabel("• RPC Port: 8332", Point(x + UIStyleGuide::Spacing::XL, label_y + 25), LabelStyle::BODY);
-    m_proxy_label = m_ui_factory->CreateLabel("• Proxy: None", Point(x + UIStyleGuide::Spacing::XL, label_y + 50), LabelStyle::BODY);
-}
-
-void SettingsScreen::CreateDisplayPanel(int x, int y, int width)
-{
-    if (!m_ui_factory || !m_layout_manager) return;
-    
-    // Create display panel
-    Rect display_bounds = Rect(x, y, width, 120);
-    m_display_panel = m_ui_factory->CreatePanel(display_bounds, PanelStyle::CARD);
-    
-    // Create display components with proper spacing
-    m_display_title_label = m_ui_factory->CreateLabel("Display Settings", Point(x + UIStyleGuide::Spacing::LG, y + UIStyleGuide::Spacing::LG), LabelStyle::HEADING);
-    m_display_title_label->SetColor(UIStyleGuide::Colors::GOTHAM_GOLD);
-    
-    int label_y = y + UIStyleGuide::Spacing::LG + 30;
-    m_theme_label = m_ui_factory->CreateLabel("• Theme: Gotham Dark", Point(x + UIStyleGuide::Spacing::XL, label_y), LabelStyle::BODY);
-    m_language_label = m_ui_factory->CreateLabel("• Language: English", Point(x + UIStyleGuide::Spacing::XL, label_y + 25), LabelStyle::BODY);
-    m_currency_label = m_ui_factory->CreateLabel("• Currency: BTC", Point(x + UIStyleGuide::Spacing::XL, label_y + 50), LabelStyle::BODY);
-}
-
-void SettingsScreen::CreateSecurityPanel(int x, int y, int width)
-{
-    if (!m_ui_factory || !m_layout_manager) return;
-    
-    // Create security panel
-    Rect security_bounds = Rect(x, y, width, 95);
-    m_security_panel = m_ui_factory->CreatePanel(security_bounds, PanelStyle::CARD);
-    
-    // Create security components with proper spacing
-    m_security_title_label = m_ui_factory->CreateLabel("Security", Point(x + UIStyleGuide::Spacing::LG, y + UIStyleGuide::Spacing::LG), LabelStyle::HEADING);
-    m_security_title_label->SetColor(UIStyleGuide::Colors::GOTHAM_GOLD);
-    
-    int label_y = y + UIStyleGuide::Spacing::LG + 30;
-    m_encryption_label = m_ui_factory->CreateLabel("• Wallet Encryption: Enabled", Point(x + UIStyleGuide::Spacing::XL, label_y), LabelStyle::BODY);
-    m_encryption_label->SetColor(UIStyleGuide::Colors::SUCCESS);
-    
-    m_autolock_label = m_ui_factory->CreateLabel("• Auto-lock: 10 minutes", Point(x + UIStyleGuide::Spacing::XL, label_y + 25), LabelStyle::BODY);
-}
-
-void SettingsScreen::CreateAboutPanel(int x, int y, int width)
-{
-    if (!m_ui_factory || !m_layout_manager) return;
-    
-    // Create about panel
-    Rect about_bounds = Rect(x, y, width, 95);
-    m_about_panel = m_ui_factory->CreatePanel(about_bounds, PanelStyle::CARD);
-    
-    // Create about components with proper spacing
-    m_about_title_label = m_ui_factory->CreateLabel("About", Point(x + UIStyleGuide::Spacing::LG, y + UIStyleGuide::Spacing::LG), LabelStyle::HEADING);
-    m_about_title_label->SetColor(UIStyleGuide::Colors::GOTHAM_GOLD);
-    
-    int label_y = y + UIStyleGuide::Spacing::LG + 30;
-    m_version_label = m_ui_factory->CreateLabel("• Gotham City Wallet v1.0.0", Point(x + UIStyleGuide::Spacing::XL, label_y), LabelStyle::BODY);
-    m_core_version_label = m_ui_factory->CreateLabel("• Bitcoin Core v25.0", Point(x + UIStyleGuide::Spacing::XL, label_y + 25), LabelStyle::BODY);
-}
-
-void SettingsScreen::SetupButtonCallbacks()
-{
-    if (m_back_button) {
-        m_back_button->SetOnClick([this]() { 
-            OnBackClicked(); 
-        });
+    std::cout << "Navigated away from Settings screen" << std::endl;
+    if (m_settings_changed) {
+        // Could prompt to save changes
     }
 }
 
-void SettingsScreen::OnBackClicked()
+void SettingsScreen::LoadSettings()
 {
+    // Load settings from configuration
+    m_current_settings = m_saved_settings;
+}
+
+void SettingsScreen::SaveSettings()
+{
+    // Save settings to configuration
+    m_saved_settings = m_current_settings;
+    m_settings_changed = false;
+    std::cout << "Settings saved" << std::endl;
+}
+
+void SettingsScreen::ApplySettings()
+{
+    // Apply settings without saving
+    std::cout << "Settings applied" << std::endl;
+}
+
+void SettingsScreen::ResetSettings()
+{
+    // Reset to defaults
+    m_current_settings = SettingsState{};
+    m_settings_changed = true;
+    std::cout << "Settings reset to defaults" << std::endl;
+}
+
+void SettingsScreen::CheckForChanges()
+{
+    // Check if settings have changed
+}
+
+void SettingsScreen::RepositionElements(int content_width, int content_height)
+{
+    // Responsive repositioning
+}
+
+void SettingsScreen::OnMainnetClicked() { std::cout << "Mainnet selected" << std::endl; }
+void SettingsScreen::OnTestnetClicked() { std::cout << "Testnet selected" << std::endl; }
+void SettingsScreen::OnRegtestClicked() { std::cout << "Regtest selected" << std::endl; }
+void SettingsScreen::OnEncryptWalletClicked() { std::cout << "Encrypt wallet clicked" << std::endl; }
+void SettingsScreen::OnChangePassphraseClicked() { std::cout << "Change passphrase clicked" << std::endl; }
+void SettingsScreen::OnBackupWalletClicked() { std::cout << "Backup wallet clicked" << std::endl; }
+void SettingsScreen::OnVerifyBackupClicked() { std::cout << "Verify backup clicked" << std::endl; }
+void SettingsScreen::OnDarkThemeClicked() { std::cout << "Dark theme selected" << std::endl; }
+void SettingsScreen::OnLightThemeClicked() { std::cout << "Light theme selected" << std::endl; }
+void SettingsScreen::OnLanguageClicked() { std::cout << "Language clicked" << std::endl; }
+void SettingsScreen::OnFullscreenClicked() { std::cout << "Fullscreen toggled" << std::endl; }
+void SettingsScreen::OnBrowseDatadirClicked() { std::cout << "Browse datadir clicked" << std::endl; }
+void SettingsScreen::OnResetSettingsClicked() { ResetSettings(); }
+
+void SettingsScreen::OnSaveClicked()
+{
+    std::cout << "Save clicked" << std::endl;
+    SaveSettings();
     m_gui.SwitchScreen(ScreenType::MAIN);
 }
 
+void SettingsScreen::OnCancelClicked()
+{
+    std::cout << "Cancel clicked" << std::endl;
+    LoadSettings(); // Revert changes
+    m_gui.SwitchScreen(ScreenType::MAIN);
+}
 
-
+void SettingsScreen::OnApplyClicked()
+{
+    std::cout << "Apply clicked" << std::endl;
+    ApplySettings();
+}

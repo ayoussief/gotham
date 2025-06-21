@@ -88,14 +88,24 @@ int GothamCityApp::Run()
 
     std::cout << "🦇 Starting Gotham City main loop..." << std::endl;
 
-    // Main application loop
+    // Main application loop with proper frame limiting
+    const int TARGET_FPS = 60;
+    const int FRAME_DELAY = 1000 / TARGET_FPS; // ~16.67ms per frame
+    Uint32 frame_start;
+    int frame_time;
+    
     while (!ShouldExit()) {
+        frame_start = SDL_GetTicks();
+        
         HandleEvents();
         Update();
         Render();
         
-        // Small delay to prevent 100% CPU usage
-        SDL_Delay(1);
+        // Frame rate limiting
+        frame_time = SDL_GetTicks() - frame_start;
+        if (FRAME_DELAY > frame_time) {
+            SDL_Delay(FRAME_DELAY - frame_time);
+        }
     }
 
     std::cout << "🦇 Gotham City main loop ended" << std::endl;

@@ -13,6 +13,7 @@ enum class LayoutType {
     VERTICAL,
     HORIZONTAL,
     GRID,
+    STACK,
     ABSOLUTE
 };
 
@@ -116,6 +117,25 @@ public:
      * Create a status bar layout
      */
     void CreateStatusBarLayout(const Rect& container, std::vector<LayoutItem>& items);
+
+    /**
+     * Create a stack layout (overlapping elements)
+     */
+    void CreateStackLayout(const Rect& container, std::vector<LayoutItem>& items, 
+                          Alignment horizontal_align = Alignment::CENTER, 
+                          Alignment vertical_align = Alignment::CENTER);
+
+    /**
+     * Create a card layout (content with padding and margins)
+     */
+    void CreateCardLayout(const Rect& container, std::vector<LayoutItem>& items, 
+                         const Padding& padding = Padding(16));
+
+    /**
+     * Create a responsive content layout that fills the available space
+     */
+    void CreateContentLayout(const Rect& container, std::vector<LayoutItem>& items, 
+                           int max_width = 800, Alignment alignment = Alignment::START);
 
     /**
      * Calculate preferred size for a container with given items

@@ -13,8 +13,13 @@
 #include "../ui/ui_factory.h"
 #include "../ui/layout_manager.h"
 #include "../ui/ui_style_guide.h"
+#include "../ui/navigation_manager.h"
 #include <memory>
 
+/**
+ * Send Bitcoin screen - Content Area Only
+ * Form for sending Bitcoin transactions
+ */
 class SendScreen : public Screen
 {
 public:
@@ -25,65 +30,91 @@ public:
     void Render(Renderer& renderer) override;
     void OnActivate() override;
     void OnResize(int new_width, int new_height) override;
+    void SetContentAreaBounds(const Rect& bounds) override;
+    
+    // Navigation lifecycle methods
+    void OnNavigatedTo(const NavigationContext& context) override;
+    void OnNavigatedFrom() override;
 
 private:
     // UI Systems
     std::unique_ptr<UIFactory> m_ui_factory;
     std::unique_ptr<LayoutManager> m_layout_manager;
     
-    // UI Components
-    std::unique_ptr<Panel> m_header_panel;
+    // Content area components only
+    std::unique_ptr<Panel> m_content_panel;
+    
+    // Send form panel
     std::unique_ptr<Panel> m_form_panel;
-    std::unique_ptr<Panel> m_preview_panel;
-    
-    // Header
-    std::unique_ptr<Label> m_title_label;
-    std::unique_ptr<Button> m_back_button;
-    
-    // Form fields
-    std::unique_ptr<Label> m_address_label;
-    std::unique_ptr<TextInput> m_address_input;
+    std::unique_ptr<Label> m_form_title_label;
+    std::unique_ptr<Label> m_recipient_label;
+    std::unique_ptr<TextInput> m_recipient_input;
     std::unique_ptr<Label> m_amount_label;
     std::unique_ptr<TextInput> m_amount_input;
     std::unique_ptr<Label> m_fee_label;
     std::unique_ptr<TextInput> m_fee_input;
-    std::unique_ptr<Label> m_label_label;
-    std::unique_ptr<TextInput> m_label_input;
+    std::unique_ptr<Label> m_description_label;
+    std::unique_ptr<TextInput> m_description_input;
     
-    // Preview section
+    // Transaction preview panel
+    std::unique_ptr<Panel> m_preview_panel;
     std::unique_ptr<Label> m_preview_title_label;
-    std::unique_ptr<Label> m_preview_address_label;
+    std::unique_ptr<Label> m_preview_recipient_label;
     std::unique_ptr<Label> m_preview_amount_label;
     std::unique_ptr<Label> m_preview_fee_label;
     std::unique_ptr<Label> m_preview_total_label;
     
-    // Action buttons
+    // Action buttons panel (like main screen)
+    std::unique_ptr<Panel> m_actions_panel;
     std::unique_ptr<Button> m_send_button;
     std::unique_ptr<Button> m_clear_button;
+    std::unique_ptr<Button> m_scan_qr_button;
     
-    // Status
-    std::unique_ptr<Label> m_status_label;
+    // Balance info panel
+    std::unique_ptr<Panel> m_balance_panel;
+    std::unique_ptr<Label> m_available_balance_label;
+    std::unique_ptr<Label> m_after_send_balance_label;
+    
+    // Form state
+    struct FormState {
+        std::string recipient;
+        std::string amount;
+        std::string fee;
+        std::string description;
+    } m_saved_form_state;
     
     float m_elapsed_time{0.0f};
-    bool m_transaction_pending{false};
+    bool m_form_valid{false};
     
-    void CreateLayout();
-    void CreateHeaderPanel();
-    void CreateFormPanel(int y, int height);
-    void CreatePreviewPanel(int y, int height);
-    void UpdatePreview();
+    // Content area bounds (set by persistent layout)
+    Rect m_content_area_bounds{0, 0, 800, 600};
+    
+    // Content area methods
+    void CreateContentPanel();
+    void CreateFormPanel();
+    void CreateActionsPanel();
+    void CreatePreviewPanel();
+    void CreateBalancePanel();
     void SetupButtonCallbacks();
     void ValidateForm();
+    void UpdatePreview();
+    void UpdateBalanceInfo();
+    void ClearForm();
+    void SaveFormState();
+    void RestoreFormState();
+    void RepositionElements(int content_width, int content_height);
     
-    // Button callbacks
-    void OnBackClicked();
+    // Action callbacks
     void OnSendClicked();
     void OnClearClicked();
+    void OnScanQRClicked();
     
-    // Helper methods
-
-    bool IsValidAddress(const std::string& address) const;
-    bool IsValidAmount(const std::string& amount) const;
+    // Form validation
+    bool IsValidBitcoinAddress(const std::string& address);
+    bool IsValidAmount(const std::string& amount);
+    bool IsValidFee(const std::string& fee);
+    double GetAmountValue();
+    double GetFeeValue();
 };
 
 #endif // GOTHAM_SDL2_SCREENS_SEND_SCREEN_H

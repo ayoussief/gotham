@@ -108,6 +108,11 @@ public:
     void AddLabel(std::shared_ptr<Label> label);
 
     /**
+     * Add a nested panel to the panel
+     */
+    void AddPanel(std::shared_ptr<Panel> panel);
+
+    /**
      * Clear all child components
      */
     void ClearChildren();
@@ -123,6 +128,11 @@ public:
     std::shared_ptr<Label> GetLabel(size_t index);
 
     /**
+     * Get panel by index
+     */
+    std::shared_ptr<Panel> GetPanel(size_t index);
+
+    /**
      * Get number of buttons
      */
     size_t GetButtonCount() const { return m_buttons.size(); }
@@ -131,6 +141,11 @@ public:
      * Get number of labels
      */
     size_t GetLabelCount() const { return m_labels.size(); }
+
+    /**
+     * Get number of panels
+     */
+    size_t GetPanelCount() const { return m_panels.size(); }
 
 private:
     Rect m_bounds;
@@ -142,6 +157,7 @@ private:
 
     std::vector<std::shared_ptr<Button>> m_buttons;
     std::vector<std::shared_ptr<Label>> m_labels;
+    std::vector<std::shared_ptr<Panel>> m_panels;
 
     void RenderBackground(Renderer& renderer);
     void RenderBorder(Renderer& renderer);

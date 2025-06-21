@@ -58,6 +58,7 @@ namespace UIStyleGuide {
     namespace FontSize {
         constexpr int TITLE = 32;
         constexpr int HEADING = 24;
+        constexpr int SUBHEADING = 20;
         constexpr int BODY = 16;
         constexpr int CAPTION = 12;
         constexpr int MONOSPACE = 14;
@@ -99,6 +100,16 @@ namespace UIStyleGuide {
         inline const Color TEXT_PRIMARY = Color(240, 240, 245, 255);
         inline const Color TEXT_SECONDARY = Color(180, 180, 190, 255);
         inline const Color TEXT_DISABLED = Color(120, 120, 130, 255);
+        inline const Color TEXT_ERROR = Color(220, 53, 69, 255);
+        
+        // Interactive Colors (for buttons and navigation)
+        inline const Color PRIMARY = GOTHAM_GOLD;
+        inline const Color PRIMARY_HOVER = Color(255, 235, 50, 255);
+        inline const Color PRIMARY_PRESSED = Color(200, 170, 0, 255);
+        
+        inline const Color SURFACE = SURFACE_DARK;
+        inline const Color SURFACE_HOVER = Color(35, 35, 45, 255);
+        inline const Color SURFACE_PRESSED = Color(45, 45, 55, 255);
         
         // Transparency Levels
         constexpr Uint8 ALPHA_FULL = 255;

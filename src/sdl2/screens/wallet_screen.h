@@ -12,8 +12,13 @@
 #include "../ui/ui_factory.h"
 #include "../ui/layout_manager.h"
 #include "../ui/ui_style_guide.h"
+#include "../ui/navigation_manager.h"
 #include <memory>
 
+/**
+ * Wallet management screen - Content Area Only
+ * Shows wallet balance, actions, and recent transactions
+ */
 class WalletScreen : public Screen
 {
 public:
@@ -24,56 +29,69 @@ public:
     void Render(Renderer& renderer) override;
     void OnActivate() override;
     void OnResize(int new_width, int new_height) override;
+    void SetContentAreaBounds(const Rect& bounds) override;
+    
+    // Navigation lifecycle methods
+    void OnNavigatedTo(const NavigationContext& context) override;
+    void OnNavigatedFrom() override;
 
 private:
     // UI Systems
     std::unique_ptr<UIFactory> m_ui_factory;
     std::unique_ptr<LayoutManager> m_layout_manager;
     
-    // UI Components
-    std::unique_ptr<Panel> m_header_panel;
-    std::unique_ptr<Panel> m_balance_panel;
-    std::unique_ptr<Panel> m_actions_panel;
-    std::unique_ptr<Panel> m_transactions_panel;
-    
-    // Header
-    std::unique_ptr<Label> m_title_label;
-    std::unique_ptr<Button> m_back_button;
+    // Content area components only
+    std::unique_ptr<Panel> m_content_panel;
     
     // Balance section
+    std::unique_ptr<Panel> m_balance_panel;
     std::unique_ptr<Label> m_balance_title_label;
     std::unique_ptr<Label> m_confirmed_balance_label;
     std::unique_ptr<Label> m_unconfirmed_balance_label;
     std::unique_ptr<Label> m_total_balance_label;
     
-    // Action buttons
+    // Action buttons panel
+    std::unique_ptr<Panel> m_actions_panel;
     std::unique_ptr<Button> m_send_button;
     std::unique_ptr<Button> m_receive_button;
-    std::unique_ptr<Button> m_transactions_button;
+    std::unique_ptr<Button> m_backup_button;
+    std::unique_ptr<Button> m_restore_button;
     
-    // Transaction list
+    // Recent transactions panel
+    std::unique_ptr<Panel> m_transactions_panel;
     std::unique_ptr<Label> m_transactions_title_label;
     std::vector<std::unique_ptr<Label>> m_transaction_labels;
+    std::unique_ptr<Button> m_view_all_transactions_button;
     
-    // Layout items for responsive design
-    std::vector<LayoutItem> m_balance_items;
-    std::vector<LayoutItem> m_action_items;
+    // Wallet info panel
+    std::unique_ptr<Panel> m_wallet_info_panel;
+    std::unique_ptr<Label> m_wallet_status_label;
+    std::unique_ptr<Label> m_encryption_status_label;
+    std::unique_ptr<Label> m_backup_status_label;
     
     float m_elapsed_time{0.0f};
     
-    void CreateLayout();
-    void CreateHeaderPanel();
+    // Content area bounds (set by persistent layout)
+    Rect m_content_area_bounds{0, 0, 800, 600};
+    
+    // Content area methods
+    void CreateContentPanel();
     void CreateBalancePanel();
     void CreateActionsPanel();
     void CreateTransactionsPanel();
+    void CreateWalletInfoPanel();
     void UpdateWalletData();
     void SetupButtonCallbacks();
+    void RefreshWalletData();
+    void RefreshTransactionHistory();
+    void RepositionElements(int content_width, int content_height);
     
-    // Button callbacks
-    void OnBackClicked();
+    // Action callbacks
     void OnSendClicked();
     void OnReceiveClicked();
-    void OnTransactionsClicked();
+    void OnBackupClicked();
+    void OnRestoreClicked();
+    void OnViewAllTransactionsClicked();
 };
 
 #endif // GOTHAM_SDL2_SCREENS_WALLET_SCREEN_H

@@ -330,6 +330,7 @@ CMakeFiles/gotham-city.dir/screens/transactions_screen.cpp.o: \
  /usr/include/c++/13/bits/uniform_int_dist.h \
  /home/amr/gotham/src/sdl2/screens/../ui/label.h \
  /home/amr/gotham/src/sdl2/screens/../ui/panel.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/text_input.h \
  /home/amr/gotham/src/sdl2/screens/../ui/ui_factory.h \
  /home/amr/gotham/src/sdl2/screens/../ui/button.h \
  /home/amr/gotham/src/sdl2/screens/../ui/label.h \
@@ -340,10 +341,14 @@ CMakeFiles/gotham-city.dir/screens/transactions_screen.cpp.o: \
  /home/amr/gotham/src/sdl2/screens/../ui/../utils/../renderer.h \
  /home/amr/gotham/src/sdl2/screens/../ui/layout_manager.h \
  /home/amr/gotham/src/sdl2/screens/../ui/ui_style_guide.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/navigation_manager.h \
+ /usr/include/c++/13/stack /usr/include/c++/13/deque \
+ /usr/include/c++/13/bits/stl_deque.h /usr/include/c++/13/bits/deque.tcc \
+ /usr/include/c++/13/bits/stl_stack.h \
  /home/amr/gotham/src/sdl2/screens/../gotham_city_gui.h \
- /home/amr/gotham/src/sdl2/screens/../renderer.h \
  /home/amr/gotham/src/sdl2/screens/../utils/theme.h \
  /home/amr/gotham/src/sdl2/screens/../utils/font_manager.h \
+ /home/amr/gotham/src/sdl2/screens/../wallet/wallet_manager.h \
  /usr/include/c++/13/iostream /usr/include/c++/13/ostream \
  /usr/include/c++/13/ios /usr/include/c++/13/bits/ios_base.h \
  /usr/include/c++/13/bits/locale_classes.h \
@@ -361,14 +366,4 @@ CMakeFiles/gotham-city.dir/screens/transactions_screen.cpp.o: \
  /usr/include/c++/13/bits/locale_facets.tcc \
  /usr/include/c++/13/bits/basic_ios.tcc \
  /usr/include/c++/13/bits/ostream.tcc /usr/include/c++/13/istream \
- /usr/include/c++/13/bits/istream.tcc /usr/include/c++/13/sstream \
- /usr/include/c++/13/bits/sstream.tcc /usr/include/c++/13/iomanip \
- /usr/include/c++/13/locale \
- /usr/include/c++/13/bits/locale_facets_nonio.h /usr/include/c++/13/ctime \
- /usr/include/x86_64-linux-gnu/c++/13/bits/time_members.h \
- /usr/include/x86_64-linux-gnu/c++/13/bits/messages_members.h \
- /usr/include/libintl.h /usr/include/c++/13/bits/codecvt.h \
- /usr/include/c++/13/bits/locale_facets_nonio.tcc \
- /usr/include/c++/13/bits/locale_conv.h \
- /usr/include/c++/13/bits/quoted_string.h /usr/include/c++/13/algorithm \
- /usr/include/c++/13/pstl/glue_algorithm_defs.h
+ /usr/include/c++/13/bits/istream.tcc

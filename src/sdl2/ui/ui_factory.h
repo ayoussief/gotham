@@ -29,12 +29,15 @@ enum class PanelStyle {
     MAIN,
     STATUS,
     CARD,
-    MODAL
+    MODAL,
+    CONTENT,    // For content area panels
+    INFO        // For info/status panels
 };
 
 enum class LabelStyle {
     TITLE,
     HEADING,
+    SUBHEADING,  // For section headings
     BODY,
     CAPTION,
     STATUS,

@@ -9,6 +9,7 @@
 
 class GothamCityGUI;
 class Renderer;
+struct Rect;
 
 /**
  * Base class for all screens in Gotham City
@@ -53,6 +54,31 @@ public:
      * Called when window is resized
      */
     virtual void OnResize(int new_width, int new_height) {}
+
+    /**
+     * Set the content area bounds for this screen (persistent layout)
+     */
+    virtual void SetContentAreaBounds(const struct Rect& bounds) {}
+
+    /**
+     * Called when navigating to this screen (persistent layout)
+     */
+    virtual void OnNavigatedTo(const class NavigationContext& context) {}
+
+    /**
+     * Called when navigating away from this screen (persistent layout)
+     */
+    virtual void OnNavigatedFrom() {}
+
+    /**
+     * Save navigation state for restoration
+     */
+    virtual void SaveNavigationState() {}
+
+    /**
+     * Restore navigation state
+     */
+    virtual void RestoreNavigationState() {}
 
 protected:
     GothamCityGUI& m_gui;

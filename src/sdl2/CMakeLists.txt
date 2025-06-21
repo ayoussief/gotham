@@ -24,7 +24,11 @@ add_executable(gotham-city
     ui/text_input.cpp
     ui/progress_bar.cpp
     ui/ui_factory.cpp
+    ui/ui_utils.cpp
     ui/layout_manager.cpp
+    ui/navigation_manager.cpp
+    ui/navigation_bar.cpp
+    ui/persistent_layout.cpp
     screens/splash_screen.cpp
     screens/main_screen.cpp
     screens/wallet_screen.cpp

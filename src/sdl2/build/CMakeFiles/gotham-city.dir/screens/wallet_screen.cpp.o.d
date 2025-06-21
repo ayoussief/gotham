@@ -340,6 +340,10 @@ CMakeFiles/gotham-city.dir/screens/wallet_screen.cpp.o: \
  /home/amr/gotham/src/sdl2/screens/../ui/../utils/../renderer.h \
  /home/amr/gotham/src/sdl2/screens/../ui/layout_manager.h \
  /home/amr/gotham/src/sdl2/screens/../ui/ui_style_guide.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/navigation_manager.h \
+ /usr/include/c++/13/stack /usr/include/c++/13/deque \
+ /usr/include/c++/13/bits/stl_deque.h /usr/include/c++/13/bits/deque.tcc \
+ /usr/include/c++/13/bits/stl_stack.h \
  /home/amr/gotham/src/sdl2/screens/../gotham_city_gui.h \
  /home/amr/gotham/src/sdl2/screens/../utils/theme.h \
  /home/amr/gotham/src/sdl2/screens/../utils/font_manager.h \

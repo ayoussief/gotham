@@ -630,6 +630,54 @@ ui/layout_manager.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/gotham-city.dir/build.make CMakeFiles/gotham-city.dir/ui/layout_manager.cpp.s
 .PHONY : ui/layout_manager.cpp.s
 
+ui/navigation_bar.o: ui/navigation_bar.cpp.o
+.PHONY : ui/navigation_bar.o
+
+# target to build an object file
+ui/navigation_bar.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gotham-city.dir/build.make CMakeFiles/gotham-city.dir/ui/navigation_bar.cpp.o
+.PHONY : ui/navigation_bar.cpp.o
+
+ui/navigation_bar.i: ui/navigation_bar.cpp.i
+.PHONY : ui/navigation_bar.i
+
+# target to preprocess a source file
+ui/navigation_bar.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gotham-city.dir/build.make CMakeFiles/gotham-city.dir/ui/navigation_bar.cpp.i
+.PHONY : ui/navigation_bar.cpp.i
+
+ui/navigation_bar.s: ui/navigation_bar.cpp.s
+.PHONY : ui/navigation_bar.s
+
+# target to generate assembly for a file
+ui/navigation_bar.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gotham-city.dir/build.make CMakeFiles/gotham-city.dir/ui/navigation_bar.cpp.s
+.PHONY : ui/navigation_bar.cpp.s
+
+ui/navigation_manager.o: ui/navigation_manager.cpp.o
+.PHONY : ui/navigation_manager.o
+
+# target to build an object file
+ui/navigation_manager.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gotham-city.dir/build.make CMakeFiles/gotham-city.dir/ui/navigation_manager.cpp.o
+.PHONY : ui/navigation_manager.cpp.o
+
+ui/navigation_manager.i: ui/navigation_manager.cpp.i
+.PHONY : ui/navigation_manager.i
+
+# target to preprocess a source file
+ui/navigation_manager.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gotham-city.dir/build.make CMakeFiles/gotham-city.dir/ui/navigation_manager.cpp.i
+.PHONY : ui/navigation_manager.cpp.i
+
+ui/navigation_manager.s: ui/navigation_manager.cpp.s
+.PHONY : ui/navigation_manager.s
+
+# target to generate assembly for a file
+ui/navigation_manager.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gotham-city.dir/build.make CMakeFiles/gotham-city.dir/ui/navigation_manager.cpp.s
+.PHONY : ui/navigation_manager.cpp.s
+
 ui/panel.o: ui/panel.cpp.o
 .PHONY : ui/panel.o
 
@@ -653,6 +701,30 @@ ui/panel.s: ui/panel.cpp.s
 ui/panel.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/gotham-city.dir/build.make CMakeFiles/gotham-city.dir/ui/panel.cpp.s
 .PHONY : ui/panel.cpp.s
+
+ui/persistent_layout.o: ui/persistent_layout.cpp.o
+.PHONY : ui/persistent_layout.o
+
+# target to build an object file
+ui/persistent_layout.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gotham-city.dir/build.make CMakeFiles/gotham-city.dir/ui/persistent_layout.cpp.o
+.PHONY : ui/persistent_layout.cpp.o
+
+ui/persistent_layout.i: ui/persistent_layout.cpp.i
+.PHONY : ui/persistent_layout.i
+
+# target to preprocess a source file
+ui/persistent_layout.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gotham-city.dir/build.make CMakeFiles/gotham-city.dir/ui/persistent_layout.cpp.i
+.PHONY : ui/persistent_layout.cpp.i
+
+ui/persistent_layout.s: ui/persistent_layout.cpp.s
+.PHONY : ui/persistent_layout.s
+
+# target to generate assembly for a file
+ui/persistent_layout.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gotham-city.dir/build.make CMakeFiles/gotham-city.dir/ui/persistent_layout.cpp.s
+.PHONY : ui/persistent_layout.cpp.s
 
 ui/progress_bar.o: ui/progress_bar.cpp.o
 .PHONY : ui/progress_bar.o
@@ -749,6 +821,30 @@ ui/ui_factory.s: ui/ui_factory.cpp.s
 ui/ui_factory.cpp.s:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/gotham-city.dir/build.make CMakeFiles/gotham-city.dir/ui/ui_factory.cpp.s
 .PHONY : ui/ui_factory.cpp.s
+
+ui/ui_utils.o: ui/ui_utils.cpp.o
+.PHONY : ui/ui_utils.o
+
+# target to build an object file
+ui/ui_utils.cpp.o:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gotham-city.dir/build.make CMakeFiles/gotham-city.dir/ui/ui_utils.cpp.o
+.PHONY : ui/ui_utils.cpp.o
+
+ui/ui_utils.i: ui/ui_utils.cpp.i
+.PHONY : ui/ui_utils.i
+
+# target to preprocess a source file
+ui/ui_utils.cpp.i:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gotham-city.dir/build.make CMakeFiles/gotham-city.dir/ui/ui_utils.cpp.i
+.PHONY : ui/ui_utils.cpp.i
+
+ui/ui_utils.s: ui/ui_utils.cpp.s
+.PHONY : ui/ui_utils.s
+
+# target to generate assembly for a file
+ui/ui_utils.cpp.s:
+	$(MAKE) $(MAKESILENT) -f CMakeFiles/gotham-city.dir/build.make CMakeFiles/gotham-city.dir/ui/ui_utils.cpp.s
+.PHONY : ui/ui_utils.cpp.s
 
 utils/animation.o: utils/animation.cpp.o
 .PHONY : utils/animation.o
@@ -964,9 +1060,18 @@ help:
 	@echo "... ui/layout_manager.o"
 	@echo "... ui/layout_manager.i"
 	@echo "... ui/layout_manager.s"
+	@echo "... ui/navigation_bar.o"
+	@echo "... ui/navigation_bar.i"
+	@echo "... ui/navigation_bar.s"
+	@echo "... ui/navigation_manager.o"
+	@echo "... ui/navigation_manager.i"
+	@echo "... ui/navigation_manager.s"
 	@echo "... ui/panel.o"
 	@echo "... ui/panel.i"
 	@echo "... ui/panel.s"
+	@echo "... ui/persistent_layout.o"
+	@echo "... ui/persistent_layout.i"
+	@echo "... ui/persistent_layout.s"
 	@echo "... ui/progress_bar.o"
 	@echo "... ui/progress_bar.i"
 	@echo "... ui/progress_bar.s"
@@ -979,6 +1084,9 @@ help:
 	@echo "... ui/ui_factory.o"
 	@echo "... ui/ui_factory.i"
 	@echo "... ui/ui_factory.s"
+	@echo "... ui/ui_utils.o"
+	@echo "... ui/ui_utils.i"
+	@echo "... ui/ui_utils.s"
 	@echo "... utils/animation.o"
 	@echo "... utils/animation.i"
 	@echo "... utils/animation.s"

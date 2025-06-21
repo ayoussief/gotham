@@ -361,3 +361,130 @@ Rect LayoutManager::StandardLayouts::GetModalBounds(int screen_width, int screen
     int y = (screen_height - modal_height) / 2;
     return Rect(x, y, modal_width, modal_height);
 }
+
+void LayoutManager::CreateStackLayout(const Rect& container, std::vector<LayoutItem>& items, 
+                                     Alignment horizontal_align, Alignment vertical_align)
+{
+    if (items.empty()) return;
+
+    for (auto& item : items) {
+        if (!item.visible) continue;
+
+        // Apply margins
+        int content_x = container.x + item.margin.left;
+        int content_y = container.y + item.margin.top;
+        int content_w = container.w - item.margin.left - item.margin.right;
+        int content_h = container.h - item.margin.top - item.margin.bottom;
+
+        // Get preferred size or use container size
+        int item_w = item.constraints.preferred_width > 0 ? 
+                     item.constraints.preferred_width : content_w;
+        int item_h = item.constraints.preferred_height > 0 ? 
+                     item.constraints.preferred_height : content_h;
+
+        // Apply constraints
+        if (item.constraints.max_width > 0) {
+            item_w = std::min(item_w, item.constraints.max_width);
+        }
+        if (item.constraints.max_height > 0) {
+            item_h = std::min(item_h, item.constraints.max_height);
+        }
+        item_w = std::max(item_w, item.constraints.min_width);
+        item_h = std::max(item_h, item.constraints.min_height);
+
+        // Calculate position based on alignment
+        int item_x = content_x;
+        int item_y = content_y;
+
+        switch (horizontal_align) {
+            case Alignment::CENTER:
+                item_x = content_x + (content_w - item_w) / 2;
+                break;
+            case Alignment::END:
+                item_x = content_x + content_w - item_w;
+                break;
+            case Alignment::START:
+            case Alignment::STRETCH:
+            default:
+                item_x = content_x;
+                if (horizontal_align == Alignment::STRETCH) {
+                    item_w = content_w;
+                }
+                break;
+        }
+
+        switch (vertical_align) {
+            case Alignment::CENTER:
+                item_y = content_y + (content_h - item_h) / 2;
+                break;
+            case Alignment::END:
+                item_y = content_y + content_h - item_h;
+                break;
+            case Alignment::START:
+            case Alignment::STRETCH:
+            default:
+                item_y = content_y;
+                if (vertical_align == Alignment::STRETCH) {
+                    item_h = content_h;
+                }
+                break;
+        }
+
+        item.bounds = Rect(item_x, item_y, item_w, item_h);
+
+        if (item.on_bounds_changed) {
+            item.on_bounds_changed(item.bounds);
+        }
+    }
+}
+
+void LayoutManager::CreateCardLayout(const Rect& container, std::vector<LayoutItem>& items, 
+                                   const Padding& padding)
+{
+    if (items.empty()) return;
+
+    // Create content area with padding
+    Rect content_area = Rect(
+        container.x + padding.left,
+        container.y + padding.top,
+        container.w - padding.left - padding.right,
+        container.h - padding.top - padding.bottom
+    );
+
+    // Use vertical layout for card content
+    CreateVerticalLayout(content_area, items, UIStyleGuide::Spacing::MD, Alignment::STRETCH);
+}
+
+void LayoutManager::CreateContentLayout(const Rect& container, std::vector<LayoutItem>& items, 
+                                      int max_width, Alignment alignment)
+{
+    if (items.empty()) return;
+
+    // Calculate content width (constrained by max_width)
+    int content_width = std::min(container.w, max_width);
+    int content_x = container.x;
+
+    // Apply alignment for content positioning
+    switch (alignment) {
+        case Alignment::CENTER:
+            content_x = container.x + (container.w - content_width) / 2;
+            break;
+        case Alignment::END:
+            content_x = container.x + container.w - content_width;
+            break;
+        case Alignment::START:
+        case Alignment::STRETCH:
+        default:
+            content_x = container.x;
+            if (alignment == Alignment::STRETCH) {
+                content_width = container.w;
+            }
+            break;
+    }
+
+    // Create content area
+    Rect content_area = Rect(content_x, container.y, content_width, container.h);
+
+    // Use vertical layout for content
+    CreateVerticalLayout(content_area, items, UIStyleGuide::Spacing::LG, Alignment::STRETCH);
+}

@@ -21,6 +21,11 @@ void Panel::HandleEvent(const SDL_Event& event)
     for (auto& button : m_buttons) {
         button->HandleEvent(event);
     }
+    
+    // Pass events to child panels
+    for (auto& panel : m_panels) {
+        panel->HandleEvent(event);
+    }
 }
 
 void Panel::Update(float delta_time)
@@ -32,6 +37,11 @@ void Panel::Update(float delta_time)
     // Update child buttons
     for (auto& button : m_buttons) {
         button->Update(delta_time);
+    }
+    
+    // Update child panels
+    for (auto& panel : m_panels) {
+        panel->Update(delta_time);
     }
 }
 
@@ -53,16 +63,15 @@ void Panel::Render(Renderer& renderer)
     // Note: In a real implementation, you'd want to set up clipping
     // to ensure children don't render outside the panel bounds
 
-    for (auto& label : m_labels) {
-        // For now, we'll assume labels have their own font management
-        // In a real implementation, you'd pass the appropriate font
-        // label->Render(renderer, font);
-    }
-
-    for (auto& button : m_buttons) {
-        // For now, we'll assume buttons have their own font management
-        // In a real implementation, you'd pass the appropriate font
-        // button->Render(renderer, font);
+    // Note: Labels and buttons need to be rendered with appropriate fonts
+    // This will be handled by the MainScreen which has access to the FontManager
+    
+    // The child elements (labels, buttons) will be rendered separately
+    // by the parent screen because they need specific fonts
+    
+    // Render child panels
+    for (auto& panel : m_panels) {
+        panel->Render(renderer);
     }
 }
 
@@ -80,10 +89,18 @@ void Panel::AddLabel(std::shared_ptr<Label> label)
     }
 }
 
+void Panel::AddPanel(std::shared_ptr<Panel> panel)
+{
+    if (panel) {
+        m_panels.push_back(panel);
+    }
+}
+
 void Panel::ClearChildren()
 {
     m_buttons.clear();
     m_labels.clear();
+    m_panels.clear();
 }
 
 std::shared_ptr<Button> Panel::GetButton(size_t index)
@@ -98,6 +115,14 @@ std::shared_ptr<Label> Panel::GetLabel(size_t index)
 {
     if (index < m_labels.size()) {
         return m_labels[index];
+    }
+    return nullptr;
+}
+
+std::shared_ptr<Panel> Panel::GetPanel(size_t index)
+{
+    if (index < m_panels.size()) {
+        return m_panels[index];
     }
     return nullptr;
 }

@@ -334,23 +334,37 @@ CMakeFiles/gotham-city.dir/gotham_city_gui.cpp.o: \
  /usr/include/c++/13/bits/uniform_int_dist.h \
  /home/amr/gotham/src/sdl2/wallet/wallet_manager.h \
  /home/amr/gotham/src/sdl2/ui/screen.h \
+ /home/amr/gotham/src/sdl2/ui/navigation_manager.h \
+ /usr/include/c++/13/stack /usr/include/c++/13/deque \
+ /usr/include/c++/13/bits/stl_deque.h /usr/include/c++/13/bits/deque.tcc \
+ /usr/include/c++/13/bits/stl_stack.h \
+ /home/amr/gotham/src/sdl2/ui/persistent_layout.h \
+ /home/amr/gotham/src/sdl2/ui/panel.h \
+ /home/amr/gotham/src/sdl2/ui/../renderer.h \
+ /home/amr/gotham/src/sdl2/ui/button.h \
+ /home/amr/gotham/src/sdl2/ui/label.h \
+ /home/amr/gotham/src/sdl2/ui/ui_factory.h \
+ /home/amr/gotham/src/sdl2/ui/text_input.h \
+ /home/amr/gotham/src/sdl2/ui/progress_bar.h \
+ /home/amr/gotham/src/sdl2/ui/../utils/theme.h \
+ /home/amr/gotham/src/sdl2/ui/layout_manager.h \
+ /home/amr/gotham/src/sdl2/ui/navigation_manager.h \
+ /home/amr/gotham/src/sdl2/ui/navigation_bar.h \
+ /home/amr/gotham/src/sdl2/ui/ui_factory.h \
+ /home/amr/gotham/src/sdl2/ui/layout_manager.h \
  /home/amr/gotham/src/sdl2/screens/splash_screen.h \
  /home/amr/gotham/src/sdl2/screens/../ui/screen.h \
  /home/amr/gotham/src/sdl2/screens/../ui/label.h \
- /home/amr/gotham/src/sdl2/screens/../ui/../renderer.h \
  /home/amr/gotham/src/sdl2/screens/../ui/progress_bar.h \
  /home/amr/gotham/src/sdl2/screens/../ui/ui_factory.h \
- /home/amr/gotham/src/sdl2/screens/../ui/button.h \
- /home/amr/gotham/src/sdl2/screens/../ui/label.h \
- /home/amr/gotham/src/sdl2/screens/../ui/panel.h \
- /home/amr/gotham/src/sdl2/screens/../ui/text_input.h \
- /home/amr/gotham/src/sdl2/screens/../ui/progress_bar.h \
- /home/amr/gotham/src/sdl2/screens/../ui/../utils/theme.h \
  /home/amr/gotham/src/sdl2/screens/../ui/layout_manager.h \
  /home/amr/gotham/src/sdl2/screens/../ui/ui_style_guide.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/../renderer.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/../utils/theme.h \
  /home/amr/gotham/src/sdl2/screens/main_screen.h \
  /home/amr/gotham/src/sdl2/screens/../ui/button.h \
  /home/amr/gotham/src/sdl2/screens/../ui/panel.h \
+ /home/amr/gotham/src/sdl2/screens/../ui/navigation_manager.h \
  /home/amr/gotham/src/sdl2/screens/wallet_screen.h \
  /home/amr/gotham/src/sdl2/screens/send_screen.h \
  /home/amr/gotham/src/sdl2/screens/../ui/text_input.h \

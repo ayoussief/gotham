@@ -11,6 +11,10 @@
 #include "utils/animation.h"
 #include "wallet/wallet_manager.h"
 #include "ui/screen.h"
+#include "ui/navigation_manager.h"
+#include "ui/persistent_layout.h"
+#include "ui/ui_factory.h"
+#include "ui/layout_manager.h"
 #include "screens/splash_screen.h"
 #include "screens/main_screen.h"
 #include "screens/wallet_screen.h"
@@ -71,7 +75,17 @@ bool GothamCityGUI::Initialize()
         return false;
     }
 
-    // Start with splash screen
+    // Create modern UI systems
+    m_navigation_manager = std::make_unique<NavigationManager>();
+    m_persistent_layout = std::make_unique<PersistentLayout>();
+
+    // Initialize modern UI systems
+    if (!InitializePersistentLayout()) {
+        std::cerr << "Failed to initialize persistent layout" << std::endl;
+        return false;
+    }
+
+    // Start with splash screen (legacy mode for splash, then switch to persistent layout)
     SwitchScreen(ScreenType::SPLASH);
 
     m_last_update_time = SDL_GetTicks();
@@ -83,7 +97,7 @@ bool GothamCityGUI::Initialize()
 
 void GothamCityGUI::HandleEvent(const SDL_Event& event)
 {
-    if (!m_initialized || !m_current_screen) {
+    if (!m_initialized) {
         return;
     }
 
@@ -111,7 +125,12 @@ void GothamCityGUI::HandleEvent(const SDL_Event& event)
                     m_renderer->HandleResize(new_width, new_height);
                 }
                 
-                // Notify current screen of resize
+                // Update persistent layout for new size
+                if (m_persistent_layout) {
+                    m_persistent_layout->OnResize(new_width, new_height);
+                }
+                
+                // Notify current screen of resize (legacy support)
                 if (m_current_screen) {
                     m_current_screen->OnResize(new_width, new_height);
                 }
@@ -120,8 +139,15 @@ void GothamCityGUI::HandleEvent(const SDL_Event& event)
             break;
     }
 
-    // Pass event to current screen
-    m_current_screen->HandleEvent(event);
+    // If using persistent layout (modern mode), handle events there first
+    if (m_persistent_layout && m_current_screen_type != ScreenType::SPLASH) {
+        m_persistent_layout->HandleEvent(event);
+    }
+    
+    // Pass event to current screen (for splash screen or content area)
+    if (m_current_screen) {
+        m_current_screen->HandleEvent(event);
+    }
 }
 
 void GothamCityGUI::Update()
@@ -136,6 +162,11 @@ void GothamCityGUI::Update()
 
     // Update animation manager
     m_animation_manager->Update(delta_time);
+
+    // Update persistent layout (modern mode)
+    if (m_persistent_layout && m_current_screen_type != ScreenType::SPLASH) {
+        m_persistent_layout->Update(delta_time);
+    }
 
     // Update current screen
     if (m_current_screen) {
@@ -152,9 +183,18 @@ void GothamCityGUI::Render()
     // Clear screen with dark background
     m_renderer->Clear(m_theme_manager->GetColor(ThemeColor::BACKGROUND));
 
-    // Render current screen
-    if (m_current_screen) {
-        m_current_screen->Render(*m_renderer);
+    // Modern persistent layout rendering
+    if (m_persistent_layout && m_current_screen_type != ScreenType::SPLASH) {
+        // Render persistent elements (header, sidebar, status bar)
+        m_persistent_layout->RenderPersistentElements(*m_renderer, *m_font_manager);
+        
+        // Render content area (current screen)
+        m_persistent_layout->RenderContentArea(*m_renderer);
+    } else {
+        // Legacy rendering for splash screen
+        if (m_current_screen) {
+            m_current_screen->Render(*m_renderer);
+        }
     }
 
     // Present the rendered frame
@@ -171,19 +211,53 @@ void GothamCityGUI::SwitchScreen(ScreenType screen_type)
 
     // Track previous screen for context-aware navigation
     m_previous_screen_type = m_current_screen_type;
-    
-    m_current_screen = CreateScreen(screen_type);
     m_current_screen_type = screen_type;
 
-    if (m_current_screen && !m_current_screen->Initialize()) {
-        std::cerr << "Failed to initialize screen" << std::endl;
-        m_current_screen.reset();
+    // Handle splash screen with legacy mode
+    if (screen_type == ScreenType::SPLASH) {
+        m_current_screen = CreateScreen(screen_type);
+        if (m_current_screen && !m_current_screen->Initialize()) {
+            std::cerr << "Failed to initialize screen" << std::endl;
+            m_current_screen.reset();
+            return;
+        }
+        if (m_current_screen) {
+            m_current_screen->OnActivate();
+        }
         return;
     }
 
-    // Activate the screen
-    if (m_current_screen) {
-        m_current_screen->OnActivate();
+    // Modern persistent layout mode for all other screens
+    if (m_persistent_layout) {
+        // Create screen for content area only
+        auto content_screen = CreateScreen(screen_type);
+        if (content_screen && !content_screen->Initialize()) {
+            std::cerr << "Failed to initialize content screen" << std::endl;
+            return;
+        }
+
+        // Set content area in persistent layout
+        m_persistent_layout->SetContentArea(std::move(content_screen));
+        m_persistent_layout->SetActiveNavigationItem(screen_type);
+        
+        // Update current screen reference for compatibility (raw pointer, not ownership)
+        m_current_screen.reset(); // Clear the unique_ptr since persistent layout owns the screen now
+        
+        // Activate the content screen through persistent layout
+        if (auto* content_screen_ptr = m_persistent_layout->GetContentScreen()) {
+            content_screen_ptr->OnActivate();
+        }
+    } else {
+        // Fallback to legacy mode if persistent layout not available
+        m_current_screen = CreateScreen(screen_type);
+        if (m_current_screen && !m_current_screen->Initialize()) {
+            std::cerr << "Failed to initialize screen" << std::endl;
+            m_current_screen.reset();
+            return;
+        }
+        if (m_current_screen) {
+            m_current_screen->OnActivate();
+        }
     }
 }
 
@@ -211,4 +285,78 @@ std::unique_ptr<Screen> GothamCityGUI::CreateScreen(ScreenType screen_type)
             std::cerr << "Unknown screen type: " << static_cast<int>(screen_type) << std::endl;
             return nullptr;
     }
+}
+
+std::unique_ptr<Screen> GothamCityGUI::CreateScreenWithContext(ScreenType screen_type, const NavigationContext& context)
+{
+    // For now, create screen normally and pass context during initialization
+    auto screen = CreateScreen(screen_type);
+    // TODO: Pass context to screen initialization when NavigationContext is fully implemented
+    return screen;
+}
+
+void GothamCityGUI::SwitchScreenWithContext(ScreenType screen_type, const NavigationContext& context)
+{
+    // For now, use regular screen switching
+    // TODO: Implement full context-aware navigation
+    SwitchScreen(screen_type);
+}
+
+bool GothamCityGUI::InitializePersistentLayout()
+{
+    if (!m_persistent_layout) {
+        return false;
+    }
+
+    // Create UI factory and layout manager for persistent layout
+    auto ui_factory = std::make_unique<UIFactory>(*m_theme_manager);
+    auto layout_manager = std::make_unique<LayoutManager>();
+
+    // Initialize persistent layout with systems
+    if (!m_persistent_layout->Initialize(*ui_factory, *layout_manager, *m_navigation_manager)) {
+        std::cerr << "Failed to initialize persistent layout" << std::endl;
+        return false;
+    }
+
+    // Set viewport bounds
+    int width = m_window_manager.GetWidth();
+    int height = m_window_manager.GetHeight();
+    m_persistent_layout->SetViewportBounds(Rect(0, 0, width, height));
+
+    // Setup navigation items
+    SetupNavigationItems();
+
+    std::cout << "Persistent layout initialized successfully" << std::endl;
+    return true;
+}
+
+void GothamCityGUI::SetupNavigationItems()
+{
+    if (!m_persistent_layout) {
+        return;
+    }
+
+    // Add navigation items to sidebar
+    m_persistent_layout->AddNavigationItem("Main", "🏠", ScreenType::MAIN, 
+        [this]() { SwitchScreen(ScreenType::MAIN); });
+    
+    m_persistent_layout->AddNavigationItem("Wallet", "💰", ScreenType::WALLET, 
+        [this]() { SwitchScreen(ScreenType::WALLET); });
+    
+    m_persistent_layout->AddNavigationItem("Send", "📤", ScreenType::SEND, 
+        [this]() { SwitchScreen(ScreenType::SEND); });
+    
+    m_persistent_layout->AddNavigationItem("Receive", "📥", ScreenType::RECEIVE, 
+        [this]() { SwitchScreen(ScreenType::RECEIVE); });
+    
+    m_persistent_layout->AddNavigationItem("History", "📋", ScreenType::TRANSACTIONS, 
+        [this]() { SwitchScreen(ScreenType::TRANSACTIONS); });
+    
+    m_persistent_layout->AddNavigationItem("Settings", "⚙️", ScreenType::SETTINGS, 
+        [this]() { SwitchScreen(ScreenType::SETTINGS); });
+    
+    m_persistent_layout->AddNavigationItem("Console", "💻", ScreenType::CONSOLE, 
+        [this]() { SwitchScreen(ScreenType::CONSOLE); });
+
+    std::cout << "Navigation items setup complete" << std::endl;
 }

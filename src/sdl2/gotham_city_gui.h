@@ -22,6 +22,8 @@ class FontManager;
 class TextureManager;
 class AnimationManager;
 class WalletManager;
+class NavigationManager;
+class PersistentLayout;
 
 enum class ScreenType {
     SPLASH,
@@ -103,6 +105,16 @@ public:
      */
     WalletManager* GetWalletManager() const { return m_wallet_manager.get(); }
 
+    /**
+     * Get the navigation manager
+     */
+    NavigationManager* GetNavigationManager() const { return m_navigation_manager.get(); }
+
+    /**
+     * Get the persistent layout
+     */
+    PersistentLayout* GetPersistentLayout() const { return m_persistent_layout.get(); }
+
 private:
     WindowManager& m_window_manager;
     interfaces::Node* m_node;
@@ -115,7 +127,11 @@ private:
     std::unique_ptr<AnimationManager> m_animation_manager;
     std::unique_ptr<WalletManager> m_wallet_manager;
 
-    // Screen management
+    // Modern UI systems
+    std::unique_ptr<NavigationManager> m_navigation_manager;
+    std::unique_ptr<PersistentLayout> m_persistent_layout;
+
+    // Screen management (legacy - will be replaced by persistent layout)
     std::unique_ptr<Screen> m_current_screen;
     ScreenType m_current_screen_type{ScreenType::SPLASH};
     ScreenType m_previous_screen_type{ScreenType::SPLASH};
@@ -125,6 +141,10 @@ private:
     Uint32 m_last_update_time{0};
 
     std::unique_ptr<Screen> CreateScreen(ScreenType screen_type);
+    std::unique_ptr<Screen> CreateScreenWithContext(ScreenType screen_type, const class NavigationContext& context);
+    void SwitchScreenWithContext(ScreenType screen_type, const class NavigationContext& context);
+    bool InitializePersistentLayout();
+    void SetupNavigationItems();
 };
 
 #endif // GOTHAM_SDL2_GOTHAM_CITY_GUI_H

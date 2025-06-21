@@ -13,8 +13,13 @@
 #include "../ui/ui_factory.h"
 #include "../ui/layout_manager.h"
 #include "../ui/ui_style_guide.h"
+#include "../ui/navigation_manager.h"
 #include <memory>
 
+/**
+ * Receive Bitcoin screen - Content Area Only
+ * Shows QR code and address for receiving Bitcoin
+ */
 class ReceiveScreen : public Screen
 {
 public:
@@ -25,56 +30,69 @@ public:
     void Render(Renderer& renderer) override;
     void OnActivate() override;
     void OnResize(int new_width, int new_height) override;
+    void SetContentAreaBounds(const Rect& bounds) override;
+    
+    // Navigation lifecycle methods
+    void OnNavigatedTo(const NavigationContext& context) override;
+    void OnNavigatedFrom() override;
 
 private:
     // UI Systems
     std::unique_ptr<UIFactory> m_ui_factory;
     std::unique_ptr<LayoutManager> m_layout_manager;
     
-    // UI Components
-    std::unique_ptr<Panel> m_header_panel;
-    std::unique_ptr<Panel> m_address_panel;
+    // Content area components only
+    std::unique_ptr<Panel> m_content_panel;
+    
+    // QR code panel
     std::unique_ptr<Panel> m_qr_panel;
+    std::unique_ptr<Label> m_qr_title_label;
+    // QR code would be rendered as texture/image
     
-    // Header
-    std::unique_ptr<Label> m_title_label;
-    std::unique_ptr<Button> m_back_button;
-    
-    // Address section
+    // Address panel
+    std::unique_ptr<Panel> m_address_panel;
     std::unique_ptr<Label> m_address_title_label;
     std::unique_ptr<Label> m_address_label;
-    std::unique_ptr<Button> m_copy_button;
+    std::unique_ptr<Button> m_copy_address_button;
     std::unique_ptr<Button> m_new_address_button;
     
-    // Amount request (optional)
-    std::unique_ptr<Label> m_amount_title_label;
+    // Request amount panel
+    std::unique_ptr<Panel> m_request_panel;
+    std::unique_ptr<Label> m_request_title_label;
+    std::unique_ptr<Label> m_amount_label;
     std::unique_ptr<TextInput> m_amount_input;
-    std::unique_ptr<Label> m_amount_label_input_label;
-    std::unique_ptr<TextInput> m_amount_label_input;
+    std::unique_ptr<Label> m_description_label;
+    std::unique_ptr<TextInput> m_description_input;
+    std::unique_ptr<Button> m_generate_request_button;
     
-    // QR Code placeholder
-    std::unique_ptr<Label> m_qr_title_label;
-    std::unique_ptr<Label> m_qr_placeholder_label;
-    
-    // Status
-    std::unique_ptr<Label> m_status_label;
+    // Address list panel
+    std::unique_ptr<Panel> m_address_list_panel;
+    std::unique_ptr<Label> m_address_list_title_label;
+    std::vector<std::unique_ptr<Label>> m_address_list_labels;
+    std::unique_ptr<Button> m_show_used_addresses_button;
     
     std::string m_current_address;
+    std::string m_requested_amount;
+    std::string m_request_description;
     float m_elapsed_time{0.0f};
     
-    void CreateLayout();
-    void CreateHeaderPanel();
-    void CreateAddressPanel(int y, int height);
-    void CreateQRPanel(int y, int height);
-    void GenerateNewAddress();
+    // Content area methods
+    void CreateContentPanel();
+    void CreateQRPanel();
+    void CreateAddressPanel();
+    void CreateRequestPanel();
+    void CreateAddressListPanel();
     void SetupButtonCallbacks();
+    void GenerateNewAddress();
+    void UpdateQRCode();
+    void RefreshAddressList();
+    void RepositionElements(int content_width, int content_height);
     
-    // Button callbacks
-    void OnBackClicked();
-    void OnCopyClicked();
+    // Action callbacks
+    void OnCopyAddressClicked();
     void OnNewAddressClicked();
-    
-    // Helper methods
+    void OnGenerateRequestClicked();
+    void OnShowUsedAddressesClicked();
 };
 
 #endif // GOTHAM_SDL2_SCREENS_RECEIVE_SCREEN_H
