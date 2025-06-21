@@ -3,6 +3,7 @@
 // file COPYING or https://opensource.org/license/mit/.
 
 #include "layout_manager.h"
+#include "ui_style_guide.h"
 #include <algorithm>
 #include <numeric>
 
@@ -97,17 +98,23 @@ void LayoutManager::CreateHorizontalLayout(const Rect& container, std::vector<La
     // Calculate total weight and fixed widths
     float total_weight = 0.0f;
     int fixed_width = 0;
+    int total_margins = 0;
     
     for (auto& item : items) {
         if (!item.visible) continue;
+        
+        // Add margins for all items
+        total_margins += item.margin.left + item.margin.right;
         
         if (item.constraints.preferred_width > 0) {
             fixed_width += item.constraints.preferred_width;
         } else {
             total_weight += item.constraints.weight;
         }
-        fixed_width += item.margin.left + item.margin.right;
     }
+    
+    // Account for margins in available space
+    fixed_width += total_margins;
 
     // Distribute remaining space among flexible items
     int flexible_width = content_width - fixed_width;
@@ -240,23 +247,39 @@ void LayoutManager::CreateHeaderLayout(const Rect& container, std::vector<Layout
 {
     if (items.empty()) return;
 
-    // Header layout: Title (left), Actions (right), Balance (center-right)
-    int padding = 20;
+    // Header layout: Title (left), Balance (center), Settings (right)
+    // Use UIStyleGuide spacing for consistency
+    int padding = UIStyleGuide::Spacing::LG;
     int button_width = 100;
-    int current_x = container.x + padding;
+    int min_spacing = UIStyleGuide::Spacing::MD;
 
     for (size_t i = 0; i < items.size(); ++i) {
         auto& item = items[i];
         if (!item.visible) continue;
 
         if (i == 0) { // Title - left aligned
-            item.bounds = Rect(current_x, container.y + padding, 200, container.h - 2 * padding);
+            item.bounds = Rect(container.x + padding, container.y + padding, 200, container.h - 2 * padding);
         } else if (i == items.size() - 1) { // Last item - right aligned (settings button)
             item.bounds = Rect(container.x + container.w - button_width - padding, 
                              container.y + padding, button_width, container.h - 2 * padding);
-        } else { // Middle items - center-right aligned
-            int x = container.x + container.w - 300 - (items.size() - i - 2) * 150;
-            item.bounds = Rect(x, container.y + padding, 140, container.h - 2 * padding);
+        } else { // Middle items - positioned with proper spacing to avoid overlap
+            // Calculate available space between title and settings button
+            int title_end = container.x + padding + 200;
+            int settings_start = container.x + container.w - button_width - padding;
+            int available_start = title_end + min_spacing;
+            int available_end = settings_start - min_spacing;
+            int available_width = available_end - available_start;
+            
+            // Only position if there's enough space
+            if (available_width > 100) { // Minimum width for balance display
+                int balance_width = std::min(250, available_width);
+                int balance_x = available_start + (available_width - balance_width) / 2;
+                item.bounds = Rect(balance_x, container.y + padding, balance_width, container.h - 2 * padding);
+            } else {
+                // If not enough space, position balance below title (responsive behavior)
+                item.bounds = Rect(container.x + padding, container.y + padding + 30, 
+                                 std::min(250, container.w - 2 * padding), 20);
+            }
         }
 
         if (item.on_bounds_changed) {

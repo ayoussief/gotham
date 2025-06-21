@@ -285,8 +285,8 @@ void WalletScreen::CreateActionsPanel()
     m_action_items.clear();
     m_action_items.resize(3);
     
-    // Send button
-    m_action_items[0].constraints.preferred_width = 150;
+    // Send button - use flexible layout with equal weights
+    m_action_items[0].constraints.min_width = 120; // Minimum width to prevent too small buttons
     m_action_items[0].constraints.weight = 1.0f;
     m_action_items[0].margin = Margin(UIStyleGuide::Spacing::SM);
     m_action_items[0].on_bounds_changed = [this](const Rect& bounds) {
@@ -295,8 +295,8 @@ void WalletScreen::CreateActionsPanel()
         }
     };
     
-    // Receive button
-    m_action_items[1].constraints.preferred_width = 150;
+    // Receive button - use flexible layout with equal weights
+    m_action_items[1].constraints.min_width = 120;
     m_action_items[1].constraints.weight = 1.0f;
     m_action_items[1].margin = Margin(UIStyleGuide::Spacing::SM);
     m_action_items[1].on_bounds_changed = [this](const Rect& bounds) {
@@ -305,8 +305,8 @@ void WalletScreen::CreateActionsPanel()
         }
     };
     
-    // Transactions button
-    m_action_items[2].constraints.preferred_width = 150;
+    // Transactions button - use flexible layout with equal weights
+    m_action_items[2].constraints.min_width = 120;
     m_action_items[2].constraints.weight = 1.0f;
     m_action_items[2].margin = Margin(UIStyleGuide::Spacing::SM);
     m_action_items[2].on_bounds_changed = [this](const Rect& bounds) {

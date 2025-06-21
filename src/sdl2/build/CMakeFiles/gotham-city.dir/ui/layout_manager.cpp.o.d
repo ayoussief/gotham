@@ -325,6 +325,9 @@ CMakeFiles/gotham-city.dir/ui/layout_manager.cpp.o: \
  /usr/include/c++/13/bits/algorithmfwd.h \
  /usr/include/c++/13/bits/stl_heap.h \
  /usr/include/c++/13/bits/uniform_int_dist.h \
+ /home/amr/gotham/src/sdl2/ui/ui_style_guide.h \
+ /home/amr/gotham/src/sdl2/ui/../utils/theme.h \
+ /home/amr/gotham/src/sdl2/ui/../utils/../renderer.h \
  /usr/include/c++/13/algorithm \
  /usr/include/c++/13/pstl/glue_algorithm_defs.h \
  /usr/include/c++/13/numeric /usr/include/c++/13/bits/stl_numeric.h \
