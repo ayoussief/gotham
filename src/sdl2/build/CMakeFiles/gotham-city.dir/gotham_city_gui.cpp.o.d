@@ -349,7 +349,6 @@ CMakeFiles/gotham-city.dir/gotham_city_gui.cpp.o: \
  /home/amr/gotham/src/sdl2/ui/../utils/theme.h \
  /home/amr/gotham/src/sdl2/ui/layout_manager.h \
  /home/amr/gotham/src/sdl2/ui/navigation_manager.h \
- /home/amr/gotham/src/sdl2/ui/navigation_bar.h \
  /home/amr/gotham/src/sdl2/ui/ui_factory.h \
  /home/amr/gotham/src/sdl2/ui/layout_manager.h \
  /home/amr/gotham/src/sdl2/screens/splash_screen.h \

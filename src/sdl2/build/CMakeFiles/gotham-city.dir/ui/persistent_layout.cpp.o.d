@@ -339,7 +339,6 @@ CMakeFiles/gotham-city.dir/ui/persistent_layout.cpp.o: \
  /usr/include/c++/13/stack /usr/include/c++/13/deque \
  /usr/include/c++/13/bits/stl_deque.h /usr/include/c++/13/bits/deque.tcc \
  /usr/include/c++/13/bits/stl_stack.h \
- /home/amr/gotham/src/sdl2/ui/navigation_bar.h \
  /home/amr/gotham/src/sdl2/ui/ui_style_guide.h \
  /home/amr/gotham/src/sdl2/ui/screen.h \
  /home/amr/gotham/src/sdl2/ui/../utils/font_manager.h \

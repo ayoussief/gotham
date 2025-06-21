@@ -457,7 +457,6 @@ CMakeFiles/gotham-city.dir/gotham_city_gui.cpp.o: /home/amr/gotham/src/sdl2/goth
   /home/amr/gotham/src/sdl2/ui/button.h \
   /home/amr/gotham/src/sdl2/ui/label.h \
   /home/amr/gotham/src/sdl2/ui/layout_manager.h \
-  /home/amr/gotham/src/sdl2/ui/navigation_bar.h \
   /home/amr/gotham/src/sdl2/ui/navigation_manager.h \
   /home/amr/gotham/src/sdl2/ui/panel.h \
   /home/amr/gotham/src/sdl2/ui/persistent_layout.h \
@@ -8355,7 +8354,6 @@ CMakeFiles/gotham-city.dir/ui/persistent_layout.cpp.o: /home/amr/gotham/src/sdl2
   /home/amr/gotham/src/sdl2/ui/button.h \
   /home/amr/gotham/src/sdl2/ui/label.h \
   /home/amr/gotham/src/sdl2/ui/layout_manager.h \
-  /home/amr/gotham/src/sdl2/ui/navigation_bar.h \
   /home/amr/gotham/src/sdl2/ui/navigation_manager.h \
   /home/amr/gotham/src/sdl2/ui/panel.h \
   /home/amr/gotham/src/sdl2/ui/persistent_layout.h \

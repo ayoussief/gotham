@@ -252,33 +252,62 @@ void LayoutManager::CreateHeaderLayout(const Rect& container, std::vector<Layout
     int padding = UIStyleGuide::Spacing::LG;
     int button_width = 100;
     int min_spacing = UIStyleGuide::Spacing::MD;
+    int title_width = 200;
+    int balance_width = 250;
 
     for (size_t i = 0; i < items.size(); ++i) {
         auto& item = items[i];
         if (!item.visible) continue;
 
+        // Calculate vertical positioning - center items vertically in header
+        int item_height = item.constraints.preferred_height > 0 ? 
+                         item.constraints.preferred_height : 
+                         (container.h - 2 * padding);
+        
+        // Ensure item height fits within container
+        item_height = std::min(item_height, container.h - 2 * padding - item.margin.top - item.margin.bottom);
+        int item_y = container.y + (container.h - item_height) / 2 + item.margin.top;
+
         if (i == 0) { // Title - left aligned
-            item.bounds = Rect(container.x + padding, container.y + padding, 200, container.h - 2 * padding);
+            int item_width = std::max(0, title_width - item.margin.left - item.margin.right);
+            item.bounds = Rect(container.x + padding + item.margin.left, 
+                             item_y, 
+                             item_width, 
+                             item_height);
         } else if (i == items.size() - 1) { // Last item - right aligned (settings button)
-            item.bounds = Rect(container.x + container.w - button_width - padding, 
-                             container.y + padding, button_width, container.h - 2 * padding);
-        } else { // Middle items - positioned with proper spacing to avoid overlap
+            int item_width = std::max(0, button_width - item.margin.left - item.margin.right);
+            // Fix: Right alignment calculation was wrong
+            item.bounds = Rect(container.x + container.w - padding - button_width + item.margin.left, 
+                             item_y, 
+                             item_width, 
+                             item_height);
+        } else { // Middle items - center aligned with proper spacing
             // Calculate available space between title and settings button
-            int title_end = container.x + padding + 200;
-            int settings_start = container.x + container.w - button_width - padding;
+            int title_end = container.x + padding + title_width;
+            int settings_start = container.x + container.w - padding - button_width;
             int available_start = title_end + min_spacing;
             int available_end = settings_start - min_spacing;
             int available_width = available_end - available_start;
             
-            // Only position if there's enough space
-            if (available_width > 100) { // Minimum width for balance display
-                int balance_width = std::min(250, available_width);
+            // Check if there's enough horizontal space for center positioning
+            if (available_width >= balance_width) {
+                // Center the balance item in the available space
                 int balance_x = available_start + (available_width - balance_width) / 2;
-                item.bounds = Rect(balance_x, container.y + padding, balance_width, container.h - 2 * padding);
+                int item_width = std::max(0, balance_width - item.margin.left - item.margin.right);
+                item.bounds = Rect(balance_x + item.margin.left, 
+                                 item_y, 
+                                 item_width, 
+                                 item_height);
+            } else if (available_width > 50) { // Minimum viable width
+                // Not enough space for full width - use available space
+                int item_width = std::max(0, available_width - item.margin.left - item.margin.right);
+                item.bounds = Rect(available_start + item.margin.left, 
+                                 item_y, 
+                                 item_width, 
+                                 item_height);
             } else {
-                // If not enough space, position balance below title (responsive behavior)
-                item.bounds = Rect(container.x + padding, container.y + padding + 30, 
-                                 std::min(250, container.w - 2 * padding), 20);
+                // Hide item if there's really no space
+                item.bounds = Rect(0, 0, 0, 0);
             }
         }
 
@@ -316,50 +345,84 @@ void LayoutManager::CreateStatusBarLayout(const Rect& container, std::vector<Lay
 {
     if (items.empty()) return;
 
-    int padding = 10;
-    int item_width = 150;
+    int padding = UIStyleGuide::Spacing::SM;
+    int item_spacing = UIStyleGuide::Spacing::MD;
+    int default_item_width = 150;
+    
+    // Simple left-to-right layout for status bar items
     int current_x = container.x + padding;
 
     for (auto& item : items) {
         if (!item.visible) continue;
 
-        item.bounds = Rect(current_x, container.y, item_width, container.h);
+        // Apply horizontal margins
+        current_x += item.margin.left;
+
+        // Determine item width
+        int item_width = item.constraints.preferred_width > 0 ? 
+                        item.constraints.preferred_width : default_item_width;
+        
+        // Apply width constraints
+        if (item.constraints.min_width > 0) {
+            item_width = std::max(item_width, item.constraints.min_width);
+        }
+        if (item.constraints.max_width > 0) {
+            item_width = std::min(item_width, item.constraints.max_width);
+        }
+
+        // Ensure item doesn't exceed container bounds
+        int max_available_width = container.x + container.w - current_x - item.margin.right - padding;
+        if (max_available_width <= 0) {
+            // No space left - hide item
+            item.bounds = Rect(0, 0, 0, 0);
+            continue;
+        }
+        item_width = std::min(item_width, max_available_width);
+
+        // Calculate vertical positioning - center vertically in status bar
+        int item_height = item.constraints.preferred_height > 0 ? 
+                         item.constraints.preferred_height : 
+                         (container.h - 2 * UIStyleGuide::Spacing::XS); // Small padding top/bottom
+        
+        // Constrain height to fit in status bar
+        item_height = std::min(item_height, container.h - item.margin.top - item.margin.bottom);
+        int item_y = container.y + (container.h - item_height) / 2;
+
+        item.bounds = Rect(current_x, item_y, item_width, item_height);
 
         if (item.on_bounds_changed) {
             item.on_bounds_changed(item.bounds);
         }
 
-        current_x += item_width + padding;
+        current_x += item_width + item.margin.right + item_spacing;
     }
 }
 
-// Standard layout bounds
+// Standard layout bounds - using UIStyleGuide constants for consistency
 Rect LayoutManager::StandardLayouts::GetHeaderBounds(int screen_width, int screen_height)
 {
-    return Rect(0, 0, screen_width, 80);
+    return UIStyleGuide::Layout::ScreenLayout::GetHeaderArea(screen_width, screen_height);
 }
 
 Rect LayoutManager::StandardLayouts::GetSidebarBounds(int screen_width, int screen_height)
 {
-    return Rect(0, 80, 200, screen_height - 110);
+    return UIStyleGuide::Layout::ScreenLayout::GetSidebarArea(screen_width, screen_height);
 }
 
 Rect LayoutManager::StandardLayouts::GetMainContentBounds(int screen_width, int screen_height)
 {
-    return Rect(200, 80, screen_width - 200, screen_height - 110);
+    return UIStyleGuide::Layout::ScreenLayout::GetMainContentArea(screen_width, screen_height);
 }
 
 Rect LayoutManager::StandardLayouts::GetStatusBarBounds(int screen_width, int screen_height)
 {
-    return Rect(0, screen_height - 30, screen_width, 30);
+    return UIStyleGuide::Layout::ScreenLayout::GetStatusBarArea(screen_width, screen_height);
 }
 
 Rect LayoutManager::StandardLayouts::GetModalBounds(int screen_width, int screen_height, 
                                                    int modal_width, int modal_height)
 {
-    int x = (screen_width - modal_width) / 2;
-    int y = (screen_height - modal_height) / 2;
-    return Rect(x, y, modal_width, modal_height);
+    return UIStyleGuide::Layout::ScreenLayout::GetModalArea(screen_width, screen_height, modal_width, modal_height);
 }
 
 void LayoutManager::CreateStackLayout(const Rect& container, std::vector<LayoutItem>& items, 

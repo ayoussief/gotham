@@ -38,10 +38,7 @@ void PersistentLayout::HandleEvent(const SDL_Event& event)
 {
     if (!m_initialized) return;
     
-    // Handle navigation bar events
-    if (m_navigation_bar) {
-        m_navigation_bar->HandleEvent(event);
-    }
+    // NOTE: NavigationBar event handling removed - we use custom header layout
     
     // Handle sidebar navigation
     for (auto& nav_item : m_navigation_items) {
@@ -71,10 +68,7 @@ void PersistentLayout::Update(float delta_time)
 {
     if (!m_initialized) return;
     
-    // Update navigation bar
-    if (m_navigation_bar) {
-        m_navigation_bar->Update(delta_time);
-    }
+    // NOTE: NavigationBar update removed - we use custom header layout
     
     // Update navigation buttons
     for (auto& nav_item : m_navigation_items) {
@@ -109,10 +103,7 @@ void PersistentLayout::RenderPersistentElements(Renderer& renderer, FontManager&
         m_header_panel->Render(renderer);
     }
     
-    // Render navigation bar
-    if (m_navigation_bar) {
-        m_navigation_bar->Render(renderer, font_manager);
-    }
+    // NOTE: NavigationBar rendering removed - we use custom header layout
     
     // Render sidebar panel
     if (m_sidebar_panel && m_sidebar_visible) {
@@ -299,7 +290,7 @@ void PersistentLayout::SetActiveNavigationItem(ScreenType screen_type)
 void PersistentLayout::UpdateWalletInfo(const std::string& balance, bool connected)
 {
     if (m_balance_label) {
-        std::string balance_text = connected ? ("Balance: " + balance) : "Wallet Disconnected";
+        std::string balance_text = connected ? ("[$] Balance: " + balance) : "[X] Wallet Disconnected";
         m_balance_label->SetText(balance_text);
         
         Color text_color = connected ? UIStyleGuide::Colors::TEXT_PRIMARY : UIStyleGuide::Colors::TEXT_ERROR;
@@ -310,15 +301,20 @@ void PersistentLayout::UpdateWalletInfo(const std::string& balance, bool connect
 void PersistentLayout::UpdateNetworkInfo(int connections, int block_height, const std::string& status)
 {
     if (m_connection_label) {
-        m_connection_label->SetText("Connections: " + std::to_string(connections));
+        std::string conn_icon = connections > 0 ? "[o]" : "[x]";
+        m_connection_label->SetText(conn_icon + " Connections: " + std::to_string(connections));
     }
     
     if (m_block_height_label) {
-        m_block_height_label->SetText("Block: " + std::to_string(block_height));
+        m_block_height_label->SetText("[#] Block: " + std::to_string(block_height));
     }
     
     if (m_sync_status_label) {
-        m_sync_status_label->SetText("Status: " + status);
+        std::string status_icon = "[~]";
+        if (status == "Connected" || status == "Synced") status_icon = "[+]";
+        else if (status == "Disconnected" || status == "Error") status_icon = "[!]";
+        
+        m_sync_status_label->SetText(status_icon + " Status: " + status);
     }
 }
 
@@ -373,23 +369,19 @@ void PersistentLayout::CreatePersistentComponents()
 
 void PersistentLayout::CreateHeaderComponents()
 {
-    // Create header panel
+    // Create header panel with enhanced styling
     m_header_panel = m_ui_factory->CreatePanel(m_header_bounds, PanelStyle::HEADER);
     
-    // Create navigation bar
-    if (m_nav_manager) {
-        m_navigation_bar = std::make_unique<NavigationBar>(*m_nav_manager);
-        m_navigation_bar->Initialize(*m_ui_factory, *m_layout_manager);
-    }
+    // NOTE: NavigationBar removed - we handle navigation in our custom header layout
     
-    // Create app title
-    m_app_title_label = m_ui_factory->CreateLabel("Gotham City", Point(20, 20), LabelStyle::TITLE);
+    // Create app title with proper styling and ASCII icon
+    m_app_title_label = m_ui_factory->CreateLabel("*** GOTHAM CITY ***", Point(0, 0), LabelStyle::TITLE);
     
-    // Create balance label
-    m_balance_label = m_ui_factory->CreateLabel("Balance: Loading...", Point(200, 25), LabelStyle::BODY);
+    // Create balance label with ASCII icon
+    m_balance_label = m_ui_factory->CreateLabel("[$] Balance: Loading...", Point(0, 0), LabelStyle::BODY);
     
-    // Create settings button
-    m_settings_button = m_ui_factory->CreateButton("⚙️ Settings", Rect(0, 0, 100, 35), ButtonStyle::GHOST);
+    // Create settings button with ASCII icon
+    m_settings_button = m_ui_factory->CreateButton("[*] Settings", Rect(0, 0, 120, 35), ButtonStyle::SECONDARY);
     m_settings_button->SetOnClick([this]() { OnSettingsClicked(); });
 }
 
@@ -403,13 +395,13 @@ void PersistentLayout::CreateSidebarComponents()
 
 void PersistentLayout::CreateStatusBarComponents()
 {
-    // Create status bar panel
+    // Create status bar panel with enhanced styling
     m_status_bar_panel = m_ui_factory->CreatePanel(m_status_bar_bounds, PanelStyle::STATUS);
     
-    // Create status labels
-    m_connection_label = m_ui_factory->CreateLabel("Connections: 0", Point(10, 5), LabelStyle::CAPTION);
-    m_block_height_label = m_ui_factory->CreateLabel("Block: 0", Point(150, 5), LabelStyle::CAPTION);
-    m_sync_status_label = m_ui_factory->CreateLabel("Status: Connecting...", Point(250, 5), LabelStyle::CAPTION);
+    // Create status labels with ASCII icons
+    m_connection_label = m_ui_factory->CreateLabel("[o] Connections: 0", Point(0, 0), LabelStyle::CAPTION);
+    m_block_height_label = m_ui_factory->CreateLabel("[#] Block: 0", Point(0, 0), LabelStyle::CAPTION);
+    m_sync_status_label = m_ui_factory->CreateLabel("[~] Status: Connecting...", Point(0, 0), LabelStyle::CAPTION);
 }
 
 void PersistentLayout::UpdateLayout()
@@ -429,10 +421,13 @@ void PersistentLayout::UpdateLayout()
         m_status_bar_panel->SetBounds(m_status_bar_bounds);
     }
     
-    // Update navigation bar bounds
-    if (m_navigation_bar) {
-        m_navigation_bar->SetBounds(m_header_bounds);
-    }
+    // NOTE: NavigationBar bounds update removed - we use custom header layout
+    
+    // === PROFESSIONAL HEADER LAYOUT ===
+    LayoutHeaderComponents();
+    
+    // === PROFESSIONAL STATUS BAR LAYOUT ===
+    LayoutStatusBarComponents();
     
     // Layout sidebar navigation items
     if (!m_navigation_items.empty() && m_sidebar_visible) {
@@ -458,39 +453,120 @@ void PersistentLayout::UpdateLayout()
         m_layout_manager->CreateVerticalLayout(sidebar_content, nav_items, 
                                              UIStyleGuide::Spacing::SM, Alignment::START);
     }
+}
+
+void PersistentLayout::LayoutHeaderComponents()
+{
+    if (!m_layout_manager) return;
     
-    // Layout header actions
-    if (!m_header_action_buttons.empty()) {
-        std::vector<LayoutItem> action_items;
-        action_items.resize(m_header_action_buttons.size() + 1); // +1 for settings button
-        
-        // Settings button
-        action_items[0].constraints.preferred_width = 100;
-        action_items[0].margin = Margin(UIStyleGuide::Spacing::SM);
-        action_items[0].on_bounds_changed = [this](const Rect& bounds) {
-            if (m_settings_button) {
-                m_settings_button->SetBounds(bounds);
-            }
-        };
-        
-        // Action buttons
-        for (size_t i = 0; i < m_header_action_buttons.size(); ++i) {
-            action_items[i + 1].constraints.preferred_width = 80;
-            action_items[i + 1].margin = Margin(UIStyleGuide::Spacing::SM);
-            action_items[i + 1].on_bounds_changed = [this, i](const Rect& bounds) {
-                if (i < m_header_action_buttons.size() && m_header_action_buttons[i]) {
-                    m_header_action_buttons[i]->SetBounds(bounds);
-                }
-            };
+    std::cout << "LAYOUT DEBUG: Header bounds: " << m_header_bounds.x << "," << m_header_bounds.y 
+              << " " << m_header_bounds.w << "x" << m_header_bounds.h << std::endl;
+    
+    // === MANUAL PROFESSIONAL LAYOUT ===
+    // Let's do a simple but professional 3-column layout manually
+    
+    int header_padding = UIStyleGuide::Spacing::LG;
+    int content_height = m_header_bounds.h - (2 * UIStyleGuide::Spacing::SM);
+    int center_y = m_header_bounds.y + (m_header_bounds.h - content_height) / 2;
+    
+    // === LEFT SECTION: APP TITLE ===
+    if (m_app_title_label) {
+        int title_width = 200;
+        Point title_pos(m_header_bounds.x + header_padding, 
+                       center_y + (content_height - UIStyleGuide::FontSize::HEADING) / 2);
+        m_app_title_label->SetPosition(title_pos);
+        std::cout << "LAYOUT DEBUG: Title positioned at " << title_pos.x << "," << title_pos.y << std::endl;
+    }
+    
+    // === CENTER SECTION: BALANCE ===
+    if (m_balance_label) {
+        int balance_width = 300;
+        int balance_x = m_header_bounds.x + (m_header_bounds.w - balance_width) / 2;
+        Point balance_pos(balance_x, 
+                         center_y + (content_height - UIStyleGuide::FontSize::BODY) / 2);
+        m_balance_label->SetPosition(balance_pos);
+        std::cout << "LAYOUT DEBUG: Balance positioned at " << balance_pos.x << "," << balance_pos.y << std::endl;
+    }
+    
+    // === RIGHT SECTION: SETTINGS BUTTON ===
+    if (m_settings_button) {
+        int button_width = 120;
+        int button_height = 35;
+        Rect settings_rect(
+            m_header_bounds.x + m_header_bounds.w - header_padding - button_width,
+            center_y + (content_height - button_height) / 2,
+            button_width,
+            button_height
+        );
+        m_settings_button->SetBounds(settings_rect);
+        std::cout << "LAYOUT DEBUG: Settings button positioned at " << settings_rect.x << "," << settings_rect.y 
+                  << " " << settings_rect.w << "x" << settings_rect.h << std::endl;
+    }
+    
+    // === ACTION BUTTONS (if any) ===
+    int next_button_x = m_header_bounds.x + m_header_bounds.w - header_padding - 120 - UIStyleGuide::Spacing::SM;
+    for (int i = m_header_action_buttons.size() - 1; i >= 0; i--) {
+        if (m_header_action_buttons[i]) {
+            int action_width = 90;
+            int action_height = 35;
+            next_button_x -= action_width;
+            
+            Rect action_rect(
+                next_button_x,
+                center_y + (content_height - action_height) / 2,
+                action_width,
+                action_height
+            );
+            m_header_action_buttons[i]->SetBounds(action_rect);
+            
+            next_button_x -= UIStyleGuide::Spacing::SM; // Space between buttons
         }
-        
-        // Apply horizontal layout to right side of header
-        Rect header_actions_area = m_header_bounds;
-        header_actions_area.x = m_header_bounds.w - 400; // Right side
-        header_actions_area.w = 400;
-        
-        m_layout_manager->CreateHorizontalLayout(header_actions_area, action_items, 
-                                                UIStyleGuide::Spacing::SM, Alignment::CENTER);
+    }
+}
+
+void PersistentLayout::LayoutStatusBarComponents()
+{
+    if (!m_layout_manager) return;
+    
+    std::cout << "LAYOUT DEBUG: Status bar bounds: " << m_status_bar_bounds.x << "," << m_status_bar_bounds.y 
+              << " " << m_status_bar_bounds.w << "x" << m_status_bar_bounds.h << std::endl;
+    
+    // === MANUAL PROFESSIONAL STATUS BAR LAYOUT ===
+    // Professional 3-section layout: Left, Center, Right distribution
+    
+    int status_padding = UIStyleGuide::Spacing::MD;
+    int label_height = UIStyleGuide::FontSize::CAPTION;
+    int center_y = m_status_bar_bounds.y + (m_status_bar_bounds.h - label_height) / 2;
+    
+    // Calculate available width
+    int available_width = m_status_bar_bounds.w - (2 * status_padding);
+    int section_width = available_width / 3; // Divide into 3 equal sections
+    
+    // === LEFT SECTION: CONNECTION STATUS ===
+    if (m_connection_label) {
+        Point conn_pos(m_status_bar_bounds.x + status_padding, center_y);
+        m_connection_label->SetPosition(conn_pos);
+        std::cout << "LAYOUT DEBUG: Connection positioned at " << conn_pos.x << "," << conn_pos.y << std::endl;
+    }
+    
+    // === CENTER SECTION: BLOCK HEIGHT ===
+    if (m_block_height_label) {
+        int center_section_start = m_status_bar_bounds.x + status_padding + section_width;
+        int block_text_width = 100; // Approximate width of "Block: XXXXX"
+        Point block_pos(center_section_start + (section_width - block_text_width) / 2, center_y);
+        m_block_height_label->SetPosition(block_pos);
+        std::cout << "LAYOUT DEBUG: Block height positioned at " << block_pos.x << "," << block_pos.y << std::endl;
+    }
+    
+    // === RIGHT SECTION: SYNC STATUS ===
+    if (m_sync_status_label) {
+        int sync_text_width = 180; // Approximate width of "Status: XXXXX"
+        Point sync_pos(
+            m_status_bar_bounds.x + m_status_bar_bounds.w - status_padding - sync_text_width, 
+            center_y
+        );
+        m_sync_status_label->SetPosition(sync_pos);
+        std::cout << "LAYOUT DEBUG: Sync status positioned at " << sync_pos.x << "," << sync_pos.y << std::endl;
     }
 }
 

@@ -11,7 +11,6 @@
 #include "ui_factory.h"
 #include "layout_manager.h"
 #include "navigation_manager.h"
-#include "navigation_bar.h"
 #include "../renderer.h"
 #include <memory>
 #include <vector>
@@ -145,11 +144,10 @@ private:
     Rect m_content_area_bounds;
     Rect m_status_bar_bounds;
     
-    // Persistent UI Components
+    // Persistent UI Components  
     std::unique_ptr<Panel> m_header_panel;
     std::unique_ptr<Panel> m_sidebar_panel;
     std::unique_ptr<Panel> m_status_bar_panel;
-    std::unique_ptr<NavigationBar> m_navigation_bar;
     
     // Header components
     std::unique_ptr<Label> m_app_title_label;
@@ -188,6 +186,10 @@ private:
     void CreateStatusBarComponents();
     void UpdateLayout();
     void UpdateNavigationStates();
+    
+    // Professional layout methods
+    void LayoutHeaderComponents();
+    void LayoutStatusBarComponents();
     
     // Event handlers
     void OnNavigationItemClicked(ScreenType screen_type, std::function<void()> callback);
